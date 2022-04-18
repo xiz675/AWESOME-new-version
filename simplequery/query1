@@ -1,0 +1,14 @@
+use newsDB as polystore;
+create analysis politician as (
+x := ["2018-1-23"];
+src :=  " http://www.chicagotribune.com/";
+T := executeSQL("News", "select news as newsText from usnewspaper where publishdate in ($x) and src = $src");
+myNER := NER(T, textCol=T.newsText);
+V:= executeSQL("Patents", "Select name from patentassignees v, $myNER m where v.name = m.entityterm AND m.entitytype = 'ORGANIZATION' ");
+Report V, myNER;
+);
+
+
+
+
+

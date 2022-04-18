@@ -1,0 +1,6 @@
+create analysis a1 as (
+a := executeSQL("select age, name as n from test where name = 'asd'");
+/* variable a is passed to cypher query and the parser can detect a is a variable and output its variable ID */
+c<n:Path>:= executeCypher("match (n)-[e:P{name:$a.name}]-(m) return n");
+Paths<p:PATH> = executeCypher("MATCH (start:Hashtag),(end:Hashtag), p = shortestPath((start)-[:cooccur*]-(end)) WHERE start.name in $topH and end.name in $topH and start.name <> end.name RETURN p");
+);

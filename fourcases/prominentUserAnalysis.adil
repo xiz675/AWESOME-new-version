@@ -1,0 +1,22 @@
+use db as db;
+create analysis prominentUserAnalysis as(
+htSet := ["h1", "h2", "hn"];
+
+/* since my SQL parser cannot parse -> for now, the schema of baseData cannot be inferred */
+baseData<tweetDate:Date, name:String, mentionedName: String> := executeSQL ("with temp as (select userid, json_array_elements((entities-> 'entities' -> 'hashtags')::json) ->>'text' as ht from db.twitterstatus),
+users as (select u.screen_name as name, s.id, s.created_at, s.entities-> 'entities' -> 'user_mentions' as mention from db.twitteruser u, db.twitterstatus s where u.userid in (select userid from temp where ht in $htSet) and u.userid = s.userid),
+select created_at::TIMESTAMP::DATE as tweetDate, name, json_array_elements(mention) ->> 'name'  as mentionedName from users;");
+
+mentionGraph := CONSTRUCTGRAPH{
+    R := awsmSQL("select name, mentionedName as mtName, tweetDate, count(*) as cnt from baseData group by name, mentionedName, tweetDate");
+    View m :=  (
+    /* create nodes */
+    Merge (:User {userName: $R.name})
+    Merge (:User {userName: $R.mtName})
+    /* create relations */
+    MATCH (user: User {userName: $R.name})
+    MATCH (mentioned: User {userName: $R.mtName})
+    Merge (user)-[mt:MENTION {tweetDate:$R.tweetDate, count:$R.cnt}]->(mentioned));
+};
+users:= mentionGraph.pageRank(topk="True", returnNumber=10);
+) EXECUTE EVERY Day;

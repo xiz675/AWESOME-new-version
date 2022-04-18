@@ -1,0 +1,13 @@
+create analysis a1 as (
+a:=[1, 2, 3];
+c := [1,4];
+b := [2,1];
+d:=[a, b, c];
+List x;
+for i:d{
+    for j:i {
+        y:=1+j;
+    } return y;
+    x := x.add(y);
+} return x;
+);

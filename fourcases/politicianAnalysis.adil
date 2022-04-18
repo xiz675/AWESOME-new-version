@@ -1,0 +1,57 @@
+use newsDB as db;
+create analysis politician as (
+RELATION newsofSenator := select newsID, newsText from db.news n where countofEntity(any(db.senators.name), n.text) >= 2;
+newsID := SELECT newsID from newsofSenator;
+newsSent := sentenceTokenizer(newsofSenator.newsText, docID=newsID);
+sentenceofSenator := select docID, sentID,sentence from newsSent s WHERE countofEntity(any(db.senators.name), s.sentence) >= 1;
+entities := NETokenizer(sentenceofSenator.sentence);
+graphs[] := [];
+docIDList[] := select DISTINCT(docID) from newsSent;
+for d : docIDList {
+	sentIDList := select DISTINCT(docID) from newsSent where docID = d;
+	for s : sentIDList {
+		sentence := select sentence from entities where docID = d and sentID = s;
+		poi := select entity from entities e, db.senators t where docID = d and sentID = s and e.entity = t.senatorName;
+		p := select entity from entities where docID = d and sentID = s and entity NOT IN s.senatorName;
+		g := DependencyParse(sentence);
+		for x : poi {
+			words := split(x);
+			PathValue := LINKED(words, COMPOUND, g);
+			nodeProp := CREATENODE(person, word=x);
+			g :=COMPRESS(PathValue, g,nodeProp );
+
+		};
+		for x : p {
+			            words := split(x);
+            			PathValue := LINKED(words, COMPOUND, g);
+            			nodeProp := CREATENODE(person, word=x);
+            			g :=COMPRESS(PathValue, g,nodeProp );
+		};
+		gnew := executeCypher("MATCH path = (:D_PEOPLE)-[:AND*0..]->(person:D_PEOPLE)
+						WHERE NOT (person)-[:AND]->()
+						FOREACH(pt IN path|
+							WITH nodes(pt) AS ns
+							MATCH (p:D_PEOPLE) where p in ns
+							WITH collect(p.words) as wordList
+							WITH REDUCE(s = HEAD(wordList), n IN TAIL(wordList) | s + '_' + n) AS entities
+							CREATE (n:D_PEOPLE_GROUP{words: entities})
+							MATCH (m)-[r1]-(p)
+							CREATE (m)-[r2]->(n)
+							SET r2=r1
+							DELETE r1
+							CREATE (p)-[:MEMBER]->(n)
+							)
+						MATCH path2 = (n) - [*0..] - (:People) WHERE n:D_PEOPLE or n:D_PEOPLE_GROUP
+						FOREACH(p IN path2|
+							MATCH (m:Verb) where m IN p
+							collect(m.word) as words
+							WITH REDUCE(s = HEAD(words), n IN TAIL(words) | s + ',' + n) AS verbs
+							CREATE (nodes(p)[0])-[:Inferred{words:verbs}]->(last(nodes(p)))
+							)
+						" );
+
+
+	};
+	graphs := MEGREGRAP(gnew);
+};
+);

@@ -1,0 +1,35 @@
+use db as db;
+create analysis entityNetworkAnalysis as(
+selectedNewsID := executeSQL("select newsID from newsdatatable n where CountText(n.newsText, db.politicalDictionary.entityName) > 1") ;
+baseData := executeSQL("select newsID, newsText, newspaperName, newsDate from newsdatatable where newsDate > '2018-1-1'::date and newsID in (select newsID from selectedNewsID)");
+stopwords := [LOAD FROM "myStopword.csv" AS STRING];
+words:=getVocubulary(stopwords);
+terms:=setDifference(words, stopwords);
+newspaperName := executeSQL("select distinct newspaperName from newsdatatable");
+newspaperName:= relationToList(newspaperName);
+LIST docTopicMats, topTermMats;
+for newspaper : newspaperName {
+    tdm, ~, ~ := countMatrix (baseData.newsText, words=terms);
+    dTMat, tTMat := topicModel(tdm, k=20);
+    docTopicMats := docTopicMats.add(dTMat);
+    topTermMats := topTermMats.add(tTMat);
+} return docTopicMats, topTermMats;
+newsSent := sentenceTokenizer(baseData.newsText,docID=baseData.newsID);
+noun := nounPhrase(newsSent.sentence, docID=newsSent.docID, sentID=newsSent.sentenceID);
+entity := NETokenizer(noun, docID=noun.docID, sentID=noun.sentenceID);
+
+entityNetwork := CONSTRUCTGRAPH{
+R:= awsmSQL("select docID as dID, sentenceID as sID, e1.entityID as id1, e2.entityID as id2, e1.entityTerm as et1, e2.entityTerm as et2, e1.entityType as t1, e2.entityType as t2
+                                    from entity e1, entity e2
+                                    where e1.dID = a and e1.sentenceID = e1.sentenceID and e1.entityID != e2.entityID");
+
+View m := (
+Merge (:Entity {id:$R.id1, name: $R.et1, entitytype: $R.t1})
+Merge (:Entity {id:$R.id2, name: $R.et2, entitytype: $R.t2})
+
+MATCH (e1: Entity {id:$R.id1})
+MATCH (e2: Entity {id:$R.id2})
+Merge (e1)-[co:COOCCUR {docID:$R.dID,sentenceID:$R.sID}]->(e2));
+};
+users := entityNetwork.pageRank(topk="True",returnNumber=10);
+) EXECUTE EVERY Day;

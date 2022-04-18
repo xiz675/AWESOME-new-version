@@ -1,0 +1,13 @@
+use newsDB as polystore;
+create analysis politician as (
+id := [2, 3];
+startNodes := executeSQL("Patents", "select term from technologydictionary where id in ($id)");
+entities<name:String> := executeCypher("knowledgeGraph", "match (n) where n.name in [$startNodes.term]
+                                            WITH collect(n) as nodes
+                                            UNWIND nodes as n
+                                            match (n)-[*1..]->(m)
+                                            return distinct m.name as name");
+x := ["2018-1-23"];
+N := executeSQL("Patents", "select news as newsText from usnewspaper where publishdate in ($x) and dictjoin(news, 'name', '$entities', 1)");
+Report N;
+);

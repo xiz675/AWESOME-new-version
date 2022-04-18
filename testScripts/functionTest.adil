@@ -1,0 +1,6 @@
+create analysis a1 as (
+a := [1,2,3,4] + [5,6];
+b := count(a);
+c := executeSQL("select text, id from test where name = 'asd'");
+d := sentenceTokenizer(c.text, docID=c.id);
+);

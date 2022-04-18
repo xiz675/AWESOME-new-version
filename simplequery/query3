@@ -1,0 +1,13 @@
+use newsDB as polystore;
+create analysis politician as (
+Tweets:= executeSQL(tweets, "select id as tweetID, userid, entities from twitterstatus where lower(text) like '%trump%'");
+HTweets := executeSQL( , "select tweetID, userid, extractHashtags(entities) as hash from $Tweets");
+hashList :=  arrayAggregate(HTweets.hash);
+H := createHistogram(hashList);
+topH := executeSQL( , "select item from $H order by frequency desc limit 100");
+Paths<p:PATH> := executeCypher(hashtagGraph, "MATCH (start:Hashtag),(end:Hashtag), p = shortestPath((start)-[:cooccur*]-(end)) WHERE start.name in $topH and end.name in $topH and start.name <> end.name RETURN p");
+G := constructGraph(Paths.p);
+topPRHash := pageRank(G, topk="True", returnNumber=100, returnProperty=["name", "PRScore"]);
+userInfo := executeSQL(tweets, "select * from twitteruser where userid in (select userid from $HTweets h where h.hash in (select node in $topPRHash))");
+report userInfo;
+);

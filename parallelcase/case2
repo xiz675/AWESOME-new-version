@@ -1,0 +1,21 @@
+use newsDB as polystore;
+create analysis newsclustering as (
+DTM := executeSQL("News", "select * from topicdistribution");
+apt := executeSQL("News", "select * from aggregatePageRankofTopk");
+topicIndex := argmax(apt.pagerank, index="pkey");
+newDTM := DTM where id(_:Column) in topicIndex;
+L := [5, 8, 10];
+cluster := L.#map(i -> clustering(newDTM, features="Column", method="kmeans", num=i, schema=["clusterid_topicnum_" + str(i), "docID"]));
+docCluster := cluster.#reduce((r1, r2) => executeSQL( , "select * from r1, r2 where $r1.docID=$r2.docID"));
+Report docCluster;
+);
+
+docCluster := cluster.#reduce((r1, r2) => Join(r1, r2, lefton="rowname", righton="rowname"))
+
+docCluster := executeSQL( , "select rowname as docid from DTM");
+for i in [5, 8, 10] {
+    colName := "clusterid_topicnum_" + str(i);
+    cluster := clustering(newDTM, features="Row", method="kmeans", num=i);
+    docCluster := executeSQL( , "select *, c.clusterid as $colName from $docCluster d, $cluster c where d.docid=c.rowname");
+}
+

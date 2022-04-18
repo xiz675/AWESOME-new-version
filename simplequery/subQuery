@@ -1,0 +1,13 @@
+use newsDB as polystore;
+create analysis newstopicanalysis as (
+src :=  " http://www.chicagotribune.com/";
+rawNews := executeSQL("News", "select id as newsid, news as newstext from usnewspaper where src = $src order by id limit 8000");
+processedNews := tokenize(rawNews.newstext, docid=rawNews.newsid, stopwords="/Users/xiuwenzheng/IdeaProjects/awesome-new-version/stopwords.txt");
+numberTopic := 5;
+DTM, WTM := lda(processedNews, docid=true, topic=numberTopic);
+topicID := [range(0, numberTopic, 1)];
+wtmPerTopic := topicID.#map(i => WTM where getValue(_:Row, i) > 0.0);
+wordsPerTopic := wtmPerTopic.#map(i => rowNames(i));
+wordsOfInterest := union(wordsPerTopic);
+G := buildWordNeighborGraph(processedNews, maxDistance=5, splitter=".", words=wordsOfInterest);
+);

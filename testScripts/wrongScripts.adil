@@ -1,0 +1,66 @@
+create analysis a1 as (
+/* this will throw type incompatible*/
+a:= 1;
+b:="q";
+c:= a+b;
+
+
+/* this will return indexoutofboundary*/
+a:=[[1,2], [3,4]];
+b:=a[2][2];
+
+/* String is not compatible with Integer */
+x:= [1, 2, 3];
+a:= count(x);
+b:=["s",a];
+
+/* x is not defined */
+y:=count(x);
+
+
+/* no column c.x */
+c := executeSQL("select text, id from test where name = 'asd'");
+d := sentenceTokenizer(c.text, docID=c.x);
+
+
+/* the input of function does not match with its schema */
+a:=1;
+d:=count(a);
+
+/* no column name */
+a := executeSQL("select age, name as n from test where name = 'asd'");
+b := awsmSQL("select name from a");
+
+/* b is not defined */
+c<NodeObj>:= executeCypher("match (n)-[e:P{name:$b.name}]-(m) return n");
+
+
+/* the output schema does not match with its Cypher return variables */
+a := executeSQL("select age, name as n from test where name = 'asd'");
+c<NodeObj>:= executeCypher("match (n)-[e:P{name:$a.name}]-(m) return n, m");
+
+
+/* no column a.name */
+a := executeSQL("select age, name as n from test where name = 'asd'");
+g:=  CONSTRUCTGRAPH{
+View v:=(
+Merge (:Person {age:$a.age})
+Merge (:Person {name:$a.name})
+MATCH (e1:Person {age:$a.name})
+MATCH (e2:Person {age:$a.age})
+Merge (e1)-[:SameYear{age:$a.age}]-(e2));
+};
+
+
+/* graph g does not hava a node label called P */
+a := executeSQL("select age, name as n from test where name = 'asd'");
+g:=  CONSTRUCTGRAPH{
+View v:=(
+Merge (:Person {age:$a.age})
+Merge (:Person {name:$a.n})
+MATCH (e1:Person {age:$a.n})
+MATCH (e2:Person {age:$a.age})
+Merge (e1)-[:SameYear{age:$a.age}]-(e2));
+};
+d := awsmCYPHER(g, match p=(n:P{age: 10})-[r:SameYear{age: 10}]-()-[]-()-[]-(m) return n, p);
+);

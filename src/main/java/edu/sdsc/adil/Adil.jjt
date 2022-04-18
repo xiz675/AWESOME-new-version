@@ -1,0 +1,2601 @@
+options{
+VISITOR=true;
+MULTI=true;
+STATIC = false;
+JDK_VERSION = "1.8";
+
+}
+
+PARSER_BEGIN(Adil)
+
+package edu.sdsc.adil;
+
+import java.io.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+
+
+import javax.json.*;
+import edu.sdsc.datatype.parser.AwsmDataType;
+import edu.sdsc.datatype.parser.FuncInput;
+import edu.sdsc.utils.*;
+import edu.sdsc.variables.logicalvariables.*;
+
+import static edu.sdsc.utils.JsonUtil.jsonArrayToJsonSetArray;
+import static edu.sdsc.utils.ParserUtil.ImportLibraryDBCheck;
+import static edu.sdsc.utils.ParserUtil.getCypherObjectType;
+import static edu.sdsc.variables.logicalvariables.VariableTable.createVariableEntry;
+
+
+
+public class Adil {
+
+private static Integer planID = edu.sdsc.utils.ParserUtil.generateUniqueID();
+
+private JsonObjectBuilder variableTable = Json.createObjectBuilder();
+private JsonObjectBuilder error = Json.createObjectBuilder();
+private JsonObjectBuilder decision = Json.createObjectBuilder();
+private JsonObjectBuilder schema = Json.createObjectBuilder();
+private JsonObjectBuilder Terminals = Json.createObjectBuilder();
+private JsonObject config;
+private VariableTable vtable =  new VariableTable();
+private JsonObjectBuilder type = Json.createObjectBuilder();
+private Integer variableID = 0;
+private Integer blockID = 0;
+private ArrayList dbLists =  new ArrayList<String>();
+
+public VariableTable getVariableTable (){
+return vtable ;
+}
+public Integer getVariableID() {return variableID++;}
+public JsonObject getConfig() {return config;}
+
+public boolean forallfalg = false;
+String forallvar = null;
+
+public static void main(String[] args){
+    Reader sr = new StringReader(args[0]);
+    JsonObjectBuilder js = Json.createObjectBuilder();
+
+    Adil p = new Adil(sr);
+    try {
+      JsonObjectBuilder node = p.ADILStatement(js);
+     System.out.println(node.toString());
+
+    } catch (ParseException pe) {
+      pe.printStackTrace();
+    }
+  }
+
+
+}
+
+PARSER_END(Adil)
+SKIP : {
+  " "
+  | "\n"
+  | "\r"
+  | <"//" (~["\n","\r"])* ("\n"|"\r"|"\r\n")>
+  | <"/*" (~["*"])* "*" (~["/"] (~["*"])* "*")* "/">
+}
+
+SKIP:
+{
+    <WHITESPACE: " " | "\t" | "\r" | "\n">
+}
+SKIP :
+{
+  < "//" (~["\r", "\n"])* >
+| < "/*" > : ML_COMMENT_STATE
+}
+
+<ML_COMMENT_STATE> SKIP :
+{
+  < "*/" > : DEFAULT
+| < ~[] >
+}
+
+
+TOKEN : {
+  <DIGITS : (["0"-"9"])+>
+  | < PLUS : "+" >
+  | <NOT : "!" >
+  | <SEMICOLON : ";">
+  | <COLON : ":" >
+  | < EQAL : "=" >
+  | < GREATER : ">">
+  | < LESS : "<" >
+  | <FBRACKETSTART : "(">
+  |<RETURN:"return">
+  | <FBRACKETEND : ")">
+  | <DOT : ".">
+  | <COMMA : ",">
+  | <DOUBLES : <DIGITS><DOT><DIGITS>>
+  | <QUOTE : "\"">
+  | <StartSQBracket : "[" >
+  | <EndSQBracket   : "]" >
+  | <StartCurlyBracket : "{">
+  | <EndCurlyBracket : "}">
+  | < AT : "@">
+  | < IN : "in">
+  | <GREATERTHANEQUALS: <GREATER> <EQAL> >
+  | <MINORTHANEQUALS: <LESS> <EQAL>>
+  | <OPERATOR : <GREATERTHANEQUALS> |<MINORTHANEQUALS> |<GREATER> |<LESS> |<EQAL> >
+//  |    <NOTEQUALSSTANDARD: "<" (<WHITESPACE>)* ">">
+//  |    <NOTEQUALSBANG: "!" (<WHITESPACE>)* "=">
+//  |    <CONCAT: "|" (<WHITESPACE>)* "|">
+//  |   <NOTIN: "NOT"(<WHITESPACE>)* "IN" >
+
+//                                                            |<WHITESPACE><NOTEQUALSSTANDARD>|<WHITESPACE><NOTEQUALSBANG>|<WHITESPACE><NOTEQUALSBANG><WHITESPACE><CONCAT>|<WHITESPACE><IN><WHITESPACE>
+//                                                            |<WHITESPACE><NOTIN><WHITESPACE>>
+  |< MINUS : "-" >
+}
+
+TOKEN [IGNORE_CASE]: {
+
+<CREATE : "create" >
+| <DELETE : "delete" >
+|<POLYSTORE: "polystore">
+| <ALTER : "alter" >
+| <LOAD : "load" >
+| <IMPORT : "import">
+| <DATASOURCE : "datasource" >
+| <WITH : "with">
+|<TRUEEX: "true">
+|<FALSEEX: "false">
+|<TRUEORFALSE: <TRUEEX> | <FALSEEX> >
+| <WHERE : "where">
+| <AND : "and">
+|<OR : "or">
+|<STORE : "store">
+|<TYPE : "type">
+|<PARTITION : "partition" >
+|<BY : "by" >
+|<AS : "as" >
+|<TEMPORALRELATION : "temporalrelation" >
+|<TEMPORALGRAPH : "temporalgraph" >
+|<ON : "on" >
+|<REPORT : "report">
+|<DBNAME: "dbName">
+|<TABLENAME : "tableName">
+|<COLNAME : "columnName">
+|<INDEX : "index">
+|<COLINDEX : "columnIndex">
+|<ROWINDEX : "rowIndex">
+|<ANALYSIS : "analysis">
+| <EXECUTE : "execute">
+|<EVERY : "every" >
+|<PROPERTYGRAPH : "propertygraph">
+|<MATRIX : "matrix">
+|<LONG:"long">
+|<HISTOGRAM:"histogram">
+|<VIEW : "view" >
+|<COLLECTION : "collection" >
+| <CONNECTION : "connection">
+| <TO : "to" >
+| <FROM : "from">
+| <LIBRARY : "library" >
+| <DICTIONARY : "dictionary" >
+| <ONTOLOGY : "ontology" >
+| <WITNESS : "witness" >
+| <PROJECT : "project" >
+| <AWSM : "awsm">
+|<NODE : "node">
+|<NODES : "nodes">
+|<PATH : "path">
+|<SELECT : "select" >
+|<ORDER : "order">
+|<GROUP : "group">
+|<USE : "use">
+|<RELATION : "relation">
+|<TUPLE: "tuple">
+|<ROW : "row">
+|<COLUMN: "col">
+|<CSV: "csv">
+|< GRAPHQL : "graphql">
+|<JSON : "json">
+|<XML : "xml">
+|<SCHEMA : "schema">
+|<NULL:"null">
+|<LIST:"list">
+|<CREATEVIEW:"createview">
+  |< MATCH    : "match" >
+  |< MERGE : "merge">
+  |<DOLLAR: "$">
+  |<SET:"set">
+}
+TOKEN [IGNORE_CASE]: {
+<ENV : "env" >
+| <ANNOTATE : "annotate">
+| <FILTER : "filter" >
+| <EXECUTESQLPP : "executesqlpp" >
+| <CONSTRUCTGRAPHFROMVIEW : "constructgraphfromview" >
+| <CONSTRUCTGRAPHFROMRELATION : "ConstructGraphFromRelation" >
+|<CYPHERQUERY : "cypherquery" >
+| <EXECUTECYPHER : "executecypher">
+|<EXECUTESOLR: "executesolr">
+| <EXECUTESQL :"executesql">
+| <AwsmSQL :"AwsmSQL">
+| <AwsmCypher :"AwsmCypher">
+| <FORALL : "for">
+| <MAP : "#map">
+| <REDUCE : "#reduce">
+| <PLACEHOLDER : "_">
+|<RANGE : "range">
+}
+TOKEN [IGNORE_CASE]:
+{
+   < DIGIT    : ["0"-"9"] >
+ | < #LETTER   : ["a"-"z","A"-"Z"] >
+   |<DATE: "date">
+    |<INT : "integer">
+    |<STRING: "string">
+    |<TEXT : "text">
+ | < ALPHANUM : ((<LETTER>)(<LETTER>|<DIGITS>|<MINUS>)*)|"~">
+ |<FIELDNAME : (<ALPHANUM>(<DOT>(<ALPHANUM>))*)>
+ |< UNQUOTED_IDENTIFIER : <FBRACKETSTART>(<WHITESPACE><ALPHANUM>)* <WHITESPACE> <FBRACKETEND> >
+ |<QUOTED_IDENTIFIER : "\"" (~["\n","\r","\""])+ "\"">
+ |<TRIPLE_QUOTED: "\"" "\"" "\"" (~["\n","\r"])+ "\"" "\"" "\"">
+  |<INPATH : (<MINUS><GREATER>) >
+ |<OUTPATH : (<LESS><MINUS>) >
+ |<MAPTO : (<EQAL><GREATER>) >
+}
+
+
+
+
+JsonObjectBuilder ADILStatement(JsonObjectBuilder jObject) :
+{JsonArrayBuilder array = Json.createArrayBuilder(); JsonObjectBuilder tempJB = Json.createObjectBuilder();}
+{
+({JsonObjectBuilder tempjObject = Json.createObjectBuilder(); } UseClause(tempjObject) <SEMICOLON>{jObject.add("Use", tempjObject.build());})?
+ array = CreateAnalysis() <SEMICOLON> {jObject.add("UnitAnalysis", array.build());}
+
+ {
+ tempJB.add("Variable", variableTable.build());
+}
+ {tempJB.add("error", error.build());}
+ {tempJB.add("schema", schema.build());}
+ {tempJB.add("Terminals", Terminals.build());}
+ {tempJB.add("decision", decision.build());}
+ {jObject.add("INFO", tempJB.build());}
+ {return jObject; }
+}
+
+
+JsonObjectBuilder Statement(JsonObjectBuilder jObject): {Token t;}
+{
+ ( LOOKAHEAD(2)
+          CreateAnalysis()| //Analysis Creation Libraries
+          ImportLibrary(jObject) |
+          UseClause(jObject)) // Use a dataverse or data source,
+ {return jObject; }
+}
+
+// USE Database Syntax
+
+
+JsonObjectBuilder UseClause(JsonObjectBuilder jObject) : {Token t; Token z; JsonArrayBuilder array = Json.createArrayBuilder(); String ltype; JsonObjectBuilder tempjObject = Json.createObjectBuilder();}
+{
+
+<USE>  t= <ALPHANUM>{config = LoadConfig.getConfig(t.image);}  <AS> <POLYSTORE>
+{
+//JsonObjectBuilder dbjObject = Json.createObjectBuilder();
+
+//ImportLibraryDBCheck(dbjObject, z.image, array.build());
+jObject.add("polystore name", t.image);}
+//{jObject.add("use", tempjObject.build());}
+{return jObject;}
+}
+// Import Ontologies Dictionaries
+JsonObjectBuilder ImportLibrary(JsonObjectBuilder jObject) : {Token t; Token z; JsonArrayBuilder array = Json.createArrayBuilder(); String ltype; JsonObjectBuilder tempjObject = Json.createObjectBuilder();}
+{
+<IMPORT> (LOOKAHEAD(2)(<LIBRARY> {ltype = "LIBRARY";})|(<DICTIONARY> {ltype = "DICTIONARY";}) |( t = <ONTOLOGY> {ltype="ONTOLOGY";}) ) t= <ALPHANUM>{array.add(t.image);}{variableTable.add(t.image, ltype );}
+( <COMMA> t = <ALPHANUM> {array.add(t.image); variableTable.add(t.image,ltype ); Terminals.add(t.image, ltype);})*   <AS> z = <ALPHANUM>{variableTable.add(z.image, t.image);{tempjObject.add("as", z.image);}}
+{
+JsonObjectBuilder dbjObject = Json.createObjectBuilder();
+ImportLibraryDBCheck(dbjObject, z.image, array.build());
+tempjObject.add("System", dbjObject.build());
+tempjObject.add("type", ltype);
+}
+{jObject.add("IMPORT", tempjObject.build());}
+{return jObject;}
+}
+//Analysis Creation Libraries. Start analysis from here.
+JsonArrayBuilder CreateAnalysis(): {Token t; Token k; Integer lineNum =0; boolean scheduleFlag = true; JsonArrayBuilder array = Json.createArrayBuilder();}
+{
+  <CREATE>
+            <ANALYSIS> k = <ALPHANUM>
+//                        {jObject.add("analysis-name", k.image);
+//                        //vtable.insertEntry(k.image);vtable.updateType(k.image, DataTypeEnum.AnalysisVar.ordinal());
+//                        }
+                        <AS> <FBRACKETSTART>
+                                (
+                                          {JsonObjectBuilder tempJB = Json.createObjectBuilder(); }
+                                           (
+                                           LOOKAHEAD(5)  {tempJB.add("blockType", "Store");} StoreStatement(tempJB)
+                                           |LOOKAHEAD(10)  {tempJB.add("blockType", "FilterExpression");} FilterAssignment(tempJB)
+                                           |LOOKAHEAD(3) {tempJB.add("blockType", "Report");} ReportStatement(tempJB)
+                                           |LOOKAHEAD(10) {tempJB.add("blockType", "MapExpression");} MapExpression(tempJB)// Iteration operations
+                                           |LOOKAHEAD(10) {tempJB.add("blockType", "ReduceExpression");} ReduceExpression(tempJB)// Iteration operations
+                                           |LOOKAHEAD(20){tempJB.add("blockType", "Neo4jQuery");} CYPHERPASS(tempJB)
+//                                            |LOOKAHEAD(15) {tempJB.add("blockType", "AwsmCypher");}  CypherStatement(tempJB)
+                                            |LOOKAHEAD(20) {tempJB.add("blockType", "Solr");}  SOLRPASS(tempJB)
+                                            |LOOKAHEAD(5) {tempJB.add("blockType", "ConstructGraphFromRelation");}   ConstructGraphFromRelationFunc(tempJB)
+                                            |LOOKAHEAD(10) AssignmentStatement(tempJB)
+                                            |LOOKAHEAD(10) {tempJB.add("blockType", "ListCreation");} ListCreation(tempJB)
+                                            |LOOKAHEAD(15) SQLPASS(tempJB)
+                                            )
+                                            {lineNum = lineNum+1; }
+                                            <SEMICOLON>
+                                           {array.add(tempJB.build());}
+                                )*
+                             <FBRACKETEND>
+  (<EXECUTE> <EVERY> t = <ALPHANUM>
+//  {scheduleFlag = true;} {jObject.add("SCHEDULED", t.image); }
+ ) ?
+
+  //{jObject.add("UnitAnalysis", array.build());}
+
+   {return array; }
+}
+
+
+void ReportStatement(JsonObjectBuilder jObject): {
+Token v;
+JsonArrayBuilder tempVar = Json.createArrayBuilder();
+}
+{
+<REPORT> v = <ALPHANUM>{tempVar.add(vtable.searchVariable(v.image).first);} (<COMMA> v = <ALPHANUM>{tempVar.add(vtable.searchVariable(v.image).first);})*
+{jObject.add("varReturned", tempVar.build());
+//return jObject.add("varReturned", tempVar.build()).build();
+}
+
+}
+
+void StoreStatement(JsonObjectBuilder jObject): {
+Token t;
+JsonArrayBuilder colNames = Json.createArrayBuilder();
+JsonObjectBuilder store = Json.createObjectBuilder();
+Integer vID; String typeString;
+Token index;
+}
+{
+<STORE> <FBRACKETSTART>
+t = <ALPHANUM>
+{vID = vtable.searchVariable(t.image).first; typeString=vtable.getVarType(vID);
+store.add("varID", vID).add("varName", t.image).add("varType", typeString);}
+<COMMA>
+<DBNAME> <EQAL> t = <QUOTED_IDENTIFIER> {store.add("DBName", t.image.substring(1, t.image.length()-1));}
+<COMMA> <TABLENAME> <EQAL> t = <QUOTED_IDENTIFIER> {store.add("TableName", t.image.substring(1, t.image.length()-1));}
+(LOOKAHEAD(2) (<COMMA> (index = <INDEX>|index = <COLINDEX> |index = <ROWINDEX>) <EQAL> (t = <TRUEEX>|t = <FALSEEX>))
+{store.add(index.image, t.image);})*
+<COMMA> <COLNAME> <EQAL>
+<StartSQBracket>
+t = <QUOTED_IDENTIFIER> {colNames.add(t.image);} (<COMMA>t = <QUOTED_IDENTIFIER>{colNames.add(t.image);})*
+{store.add("colNames", colNames.build());}
+<EndSQBracket>
+<FBRACKETEND>
+{
+jObject.add("storeDetail", store.build());
+//return jObject.add("varReturned", tempVar.build()).build();
+}
+
+}
+
+void AssignmentStatement(JsonObjectBuilder jObject) : {
+Token t; Token or; Token gr; Token store ;
+JsonObjectBuilder tempJB = Json.createObjectBuilder();
+boolean variableArray = false;
+JsonArrayBuilder group = Json.createArrayBuilder();
+JsonArrayBuilder order = Json.createArrayBuilder();
+JsonArrayBuilder var = Json.createArrayBuilder();
+JsonObjectBuilder temp = Json.createObjectBuilder();
+List<String> variables = new ArrayList<String>();
+String type;
+String name;
+}
+{
+// declaration without assignment
+(
+//                    (
+//                        (
+//                              (<RELATION>{tempJB.add("type", "relation");type = "Relation";})|
+//                              (<LIST>{tempJB.add("type", "list");type = "List";})|
+//                              (<PROPERTYGRAPH>{tempJB.add("type", "graph");type="pg";})|
+//                              (<MATRIX>{tempJB.add( "type", "matrix");type = "Matrix";})
+//                        )
+//                       ((t = <ALPHANUM>)
+//                         {variables.add(t.image);}
+//                         )
+//                         (<COMMA> (t = <ALPHANUM>){variables.add(t.image);})* // Add here to the vaiable list
+//
+//                         {
+//                        vtable.batchDeclare(variableID,variables,type, block);
+//                        for(int i=0; i<variables.size();i++){
+//                        temp = Json.createObjectBuilder();
+//                        temp.add("varName", variables.get(i)).add("varID", variableID);
+//
+//                        variableID = variableID+1;
+//                        if(block.length!=0){
+//                            temp.add("blockID", block[0]);
+//                        }
+//                        var.add(temp.build());
+//                        }
+//                        tempJB.add("variables",var.build());
+//                        jObject.add( "assigntype", "declar");
+//                        jObject.add( "LHS", tempJB.build());
+//                        }
+//                       )//assignments
+//                    |
+                    (
+                    t = <ALPHANUM> {variables.add(t.image);}(<COMMA> (t = <ALPHANUM>){variables.add(t.image);})* // Add here to the vaiable list
+
+                  <COLON><EQAL>
+                    (
+                    LOOKAHEAD(10)({jObject.add( "blockType", "OperationAssign");}MATHASSIGNMENT(jObject, t.image))
+                    |LOOKAHEAD(10) LISTASSIGNMENT(jObject, t.image)
+                    |LOOKAHEAD(10) ({jObject.add("blockType", "TupleExtraction");}TUPLEEXTRACTION(jObject, t.image))
+                    |LOOKAHEAD(20) AWSMFunction(jObject,variables)
+                    |LOOKAHEAD(10)MATRIXASSIGNMENT(jObject, t.image)
+                   |LOOKAHEAD(10)(LITERALASSIGNMENT(jObject, t.image))
+                   |LOOKAHEAD(10) ({jObject.add("blockType", "TupleAssign");} TUPLEASSIGNMENT(jObject, t.image))
+
+
+                   //|LOOKAHEAD(5)({jObject.add( "assigntype", "constructGraph");}ConsturctGrpah(jObject, t.image, block))
+
+                   //|
+//                    LOOKAHEAD(5)({jObject.add( "assigntype", "AwsmCypher");}CypherStatement(jObject,t.image,block))
+
+
+//                        ({jObject.add( "assigntype", "awesomeSQL");}SelectStament(jObject)|{jObject.add( "assigntype", "FuncCall");}AWSMFunction(jObject)|{jObject.add( "assigntype", "SQL");}DBPASS(jObject)|{jObject.add( "assigntype", "simpleAssign");}SimpleASSIGNMENT(jObject) | ConsturctGrpah(jObject))
+                    )
+//                   (
+//                        (<ORDER> <BY> or = <ALPHANUM>{ List ovar = new ArrayList(); order.add(or.image); ovar.add(or.image);}(<COMMA>  or = <ALPHANUM> { order.add(or.image); ovar.add(or.image);})?
+//                        {
+
+//
+//                        tempJB.add("ORDER",order.build());
+//                        vtable.setOrder(ovar);
+//
+//                        }
+//
+//                    )?
+//                        (
+//                            <GROUP> <BY> gr = <ALPHANUM>{ group.add(gr.image);}(<COMMA> gr = <ALPHANUM> { group.add(gr.image);})* {tempJB.add("GROUP",group.build());}
+//                        )?
+//                        (
+//                            <STORE> (<AS> store = <ALPHANUM>{tempJB.add("STORAGE", store.image);})?{tempJB.add("STORE", true); }
+//                        )?
+//                        (
+//
+//                        ReturnStatement(tempJB)
+//
+//                        )?
+
+//                   )
+                   )
+)
+
+}
+
+
+
+
+
+
+
+
+
+
+JsonObjectBuilder ReturnStatement(JsonObjectBuilder jobject) : {
+Token t;
+JsonObjectBuilder tempJB = Json.createObjectBuilder();
+}
+{
+(
+<RETURN> <AS> <FBRACKETSTART>PropertyGraph(tempJB)<FBRACKETEND>
+{jobject.add("returnfrom", tempJB.build());}
+)
+{return jobject;}
+}
+
+JsonObjectBuilder PropertyGraph(JsonObjectBuilder jobject) : {
+Token t;
+JsonArrayBuilder tempArray = Json.createArrayBuilder();
+JsonArrayBuilder tempJA = Json.createArrayBuilder();
+
+}
+{
+        GRAPHNODE(tempJA){tempArray.add(tempJA.build());}
+        (
+
+        {JsonArrayBuilder tempJB = Json.createArrayBuilder();}
+        GRAPHEDGE(tempJB)
+        {tempArray.add(tempJB.build());}
+
+        {JsonArrayBuilder tempJC = Json.createArrayBuilder();}
+        GRAPHNODE(tempJC){tempArray.add(tempJC.build());}
+
+        )*
+        {jobject.add("cypher",tempArray.build());
+        return jobject;}
+}
+
+
+JsonArrayBuilder GRAPHNODE(JsonArrayBuilder jobject) : {
+Token t; Token k;
+JsonObjectBuilder tempJB = Json.createObjectBuilder();
+}
+{
+<FBRACKETSTART>
+            ((t = <ALPHANUM>)| (t = <FIELDNAME>{tempJB.add("nodeName", t.image);}))? <COLON> (k = <ALPHANUM>| k = <FIELDNAME>)
+<FBRACKETEND>
+
+{
+tempJB.add("nodeType",k.image);
+jobject.add(tempJB.build());
+return jobject;
+}
+}
+
+JsonArrayBuilder GRAPHEDGE(JsonArrayBuilder jobject):{Token t; Token k; Token s;}{
+
+{JsonObjectBuilder tempJB = Json.createObjectBuilder();
+
+}
+<MINUS><StartSQBracket>
+    t = <ALPHANUM><COLON> s = <ALPHANUM>
+<EndSQBracket><MINUS>
+{
+tempJB.add("edgeName", t.image);
+tempJB.add("edgeType",s.image);
+jobject.add(tempJB.build());
+return jobject;
+}
+}
+
+
+JsonObject ConstructGraphFromRelationExpression(JsonObjectBuilder jObject, Integer... block): {
+JsonObject tempLeftNode = Json.createObjectBuilder().build();
+JsonObject tempRightNode = Json.createObjectBuilder().build();
+JsonObject tempEdge;
+JsonObjectBuilder relationUsed = Json.createObjectBuilder();
+JsonObjectBuilder schema = Json.createObjectBuilder(); JsonObject leftnode; JsonObject rightnode; JsonObject edge;
+JsonObjectBuilder rhs = Json.createObjectBuilder(); String[] key ={"name", "type"};
+JsonArray nodeLabel = Json.createArrayBuilder().build(); JsonArray edgeLabel = Json.createArrayBuilder().build();
+JsonArray nodeProp = Json.createArrayBuilder().build(); JsonArray edgeProp = Json.createArrayBuilder().build();
+Token t;Token v; String left; String right; String sourceNode; String tgtNode; Token r; String vType;
+Token node1; Token node2; boolean hasLeftArrow = false; boolean hasRightArrow = false;
+}
+{
+<CONSTRUCTGRAPHFROMRELATION>
+<FBRACKETSTART>
+ r = <ALPHANUM> {
+Pair<Integer, Integer> vIDbID = vtable.searchVariable(r.image, block);
+Integer vID = vIDbID.first;  Integer bID = vIDbID.second;
+vType = vtable.getVarType(vID);
+if (!vType.equals("Relation")) {throw new IllegalArgumentException("ConstructGraphFromRelation accepts a relation variable");}
+relationUsed.add("varID", vID).add("varName", r.image);
+if (bID != -1) {relationUsed.add("localVariable", "true").add("blockID", bID);}
+}
+ <COMMA>
+ <FBRACKETSTART>leftnode = createProperty(r.image, block) <FBRACKETEND>
+ (<OUTPATH>{hasLeftArrow=true;}|<MINUS>) <StartSQBracket> edge = createProperty(r.image, block) {rhs.add("edge", edge);} <EndSQBracket>
+ (<MINUS>|<INPATH>{hasRightArrow = true;})
+ <FBRACKETSTART> rightnode = createProperty(r.image, block) <FBRACKETEND>
+<FBRACKETEND>
+
+{
+nodeLabel = ParserUtil.concatArray(nodeLabel, leftnode.getJsonArray("label"));
+nodeLabel = ParserUtil.concatArray(nodeLabel, rightnode.getJsonArray("label"));
+nodeProp = ParserUtil.concatArray(nodeProp, ParserUtil.extractObject(leftnode.getJsonArray("property"),key));
+nodeProp = ParserUtil.concatArray(nodeProp, ParserUtil.extractObject(rightnode.getJsonArray("property"),key));
+edgeLabel = edge.getJsonArray("label");
+edgeProp = ParserUtil.extractObject(edge.getJsonArray("property"),key);
+schema.add("nodeLabel", jsonArrayToJsonSetArray(nodeLabel)).add("nodeProperty", nodeProp).add("edgeLabel", jsonArrayToJsonSetArray(edgeLabel)).add("edgeProperty", edgeProp);
+
+if (hasRightArrow && !hasLeftArrow) {rhs.add("source", leftnode).add("target", rightnode).add("hasDirection", true);}
+else if (!hasRightArrow && hasLeftArrow)  {rhs.add("source", rightnode).add("target", leftnode).add("hasDirection", true); }
+else if (!hasRightArrow) {rhs.add("source", leftnode).add("target", rightnode).add("hasDirection", false); }
+else {throw new IllegalArgumentException("edge expression is wrong. Hint: can't have arrows on both sides");}
+//rhs.add("variable", edge.getJsonObject("varUsed"));
+rhs.add("relationUsed", relationUsed.build());
+jObject.add("RHS", rhs.build());
+JsonObject schemaDetail = schema.build();
+jObject.add("schema", schemaDetail).add("blockType", "ConstructGraphFromRelation");
+return schemaDetail;
+}
+}
+
+
+// construct graph from relation
+//todo: finish this for localVar
+void ConstructGraphFromRelationFunc(JsonObjectBuilder jObject): {
+JsonObject tempLeftNode = Json.createObjectBuilder().build();
+JsonObject tempRightNode = Json.createObjectBuilder().build();
+JsonObject tempEdge;JsonObject schema;
+JsonObjectBuilder relationUsed = Json.createObjectBuilder();
+JsonObjectBuilder innerExpression = Json.createObjectBuilder();
+JsonObjectBuilder lhs = Json.createObjectBuilder(); JsonObject leftnode; JsonObject rightnode; JsonObject edge;
+JsonObjectBuilder rhs = Json.createObjectBuilder(); String[] key ={"name", "type"};
+JsonArray nodeLabel; JsonArray edgeLabel;
+JsonArray nodeProp; JsonArray edgeProp;
+Token t;Token v; Token r; String left; String right; String sourceNode; String tgtNode;
+JsonObjectBuilder temp;
+Token node1; Token node2; boolean hasLeftArrow = false; boolean hasRightArrow = false; String vType;
+}
+{t = <ALPHANUM>{lhs.add("varName", t.image).add("varID", variableID);}
+<COLON><EQAL>
+schema = ConstructGraphFromRelationExpression(jObject)
+{
+PGTableEntry pte = new PGTableEntry(t.image, schema.getJsonArray("nodeLabel"), schema.getJsonArray("nodeProperty"), schema.getJsonArray("edgeLabel"), schema.getJsonArray("edgeProperty"));
+vtable.insertEntry(variableID, pte);
+variableID = variableID +1;
+jObject.add("LHS", lhs.build());
+}
+}
+
+
+
+
+
+// Construct Graph (delete constructgraph)
+JsonObjectBuilder ConstructGraph(JsonObjectBuilder jObject): {JsonObjectBuilder tempJA = Json.createObjectBuilder();
+JsonObjectBuilder tempJB = Json.createObjectBuilder();
+JsonArrayBuilder tempAarray = Json.createArrayBuilder();
+JsonObjectBuilder lhs = Json.createObjectBuilder();
+JsonObjectBuilder rhs = Json.createObjectBuilder();
+Token t;Token v;
+}
+{
+(t = <ALPHANUM>{lhs.add("varName", t.image); lhs.add("varID", variableID);})<COLON><EQAL>
+                      <CONSTRUCTGRAPHFROMVIEW>  <StartCurlyBracket>
+//                            ( {Token r;}
+//                            (
+//                            <RELATION>{tempJC.add("type","relation");}|<MATRIX>{tempJC.add("type","matrix");}
+//                            |<LIST>{tempJC.add("type","list");}|<PROPERTYGRAPH>{tempJC.add("type","propertygraph");})? r = <ALPHANUM>
+//                            {tempJC.add("name", r.image);}<COLON><EQAL>
+//                                                        ((SelectStament(tempJC))|(DBPASS(tempJC))| LOOKAHEAD(3)(AWSMFunction(tempJC))|SimpleASSIGNMENT(jObject, r.image))
+//                                                        <SEMICOLON>
+//                            )?
+                            ((LOOKAHEAD(10) SQLPASS(tempJB)|AssignmentStatement(tempJB))<SEMICOLON>{tempAarray.add(tempJB.build());})*
+
+                            <VIEW> v = <ALPHANUM> <COLON><EQAL>{lhs.add("viewName",v.image);}
+                                                     <FBRACKETSTART> CreateViewStatement(tempJB, blockID) <FBRACKETEND> <SEMICOLON>
+                <EndCurlyBracket>
+{
+JsonArray innerVar = tempAarray.build();
+if (innerVar.size() > 0) {
+rhs.add("tempVariables", innerVar);
+}
+JsonObject tempObj = tempJB.build();
+rhs.add("view-construction", tempObj.getJsonObject("RHS"));
+JsonArray nodeLabel = jsonArrayToJsonSetArray(tempObj.getJsonArray("nodeLabel"));
+JsonArray edgeLabel = jsonArrayToJsonSetArray(tempObj.getJsonArray("edgeLabel"));
+JsonArray nodeProp = tempObj.getJsonArray("nodeProperty");
+JsonArray edgeProp = tempObj.getJsonArray("edgeProperty");
+lhs.add("nodeLabel", nodeLabel).add("nodeProperty", nodeProp).add("edgeLabel", edgeLabel).add("edgeProperty", edgeProp);
+PGTableEntry pte = new PGTableEntry(t.image, nodeLabel, nodeProp, edgeLabel, edgeProp);
+vtable.insertEntry(variableID, pte);
+variableID = variableID +1;
+blockID = blockID +1;
+jObject.add("LHS", lhs).add("RHS", rhs);
+return jObject;
+}
+}
+
+JsonArray propertyConstraint(JsonArray label, JsonArray property,  Integer id):{Token t; Token v; String consType;  JsonArrayBuilder prop; JsonArrayBuilder cons = Json.createArrayBuilder();JsonObjectBuilder tempJB;}
+{{ArrayList<String> labelList = ParserUtil.jsonArrayToStringList(label);
+ArrayList<String> propList = ParserUtil.jsonArrayToStringList(ParserUtil.extractKey(property, "name")); }
+(<COLON>t = <ALPHANUM>{if(labelList.contains(t.image)){tempJB = Json.createObjectBuilder().add("id", id).add("lhs", t.image).add("type","nodeLabel");cons.add(tempJB.build());}
+ else{throw new IllegalArgumentException(t.image + ": no such label");}})*
+( <StartCurlyBracket>(t = <ALPHANUM><COLON>
+(<DOLLAR>v=<FIELDNAME>{
+if (!propList.contains(t.image)){throw new IllegalArgumentException(t.image + ": no such property");}
+ tempJB = Json.createObjectBuilder().add("id", id).add("lhs", t.image).add("operation", "=").add("rhs", v.image);})
+{cons.add(tempJB.build());})
+(<COMMA>t=<ALPHANUM><COLON>
+(<DOLLAR>v=<FIELDNAME>)
+{if (!propList.contains(t.image)){throw new IllegalArgumentException(t.image + ": no such property");}
+tempJB = Json.createObjectBuilder().add("id", id).add("lhs", t.image).add("operation", "=").add("rhs", v.image);cons.add(tempJB.build());})*
+<EndCurlyBracket>)?
+{return cons.build();}
+}
+
+JsonObject NodeExpressionConstraint(JsonArray label, JsonArray property,   Integer nodeID):{JsonObjectBuilder l = Json.createObjectBuilder(); JsonObjectBuilder node = Json.createObjectBuilder(); Token t; JsonArray constraints = null;JsonArray tempCons;}
+{<FBRACKETSTART> (t=<ALPHANUM>{node.add("alias", t.image);})? {node.add("nodeID", nodeID);}constraints = propertyConstraint(label,property, nodeID) <FBRACKETEND>
+
+{
+l.add("node", node.build());
+l.add("constraints", constraints);
+return l.build();}
+}
+
+// todo: add literal variable
+//| (<DOLLAR> v = <ALPHANUM> {})
+JsonObject createProperty(String relation, Integer... block):{Token name; Token t; Token v;String[] v1; String var; String rhs; String consType;
+JsonArrayBuilder label = Json.createArrayBuilder();
+JsonArrayBuilder prop = Json.createArrayBuilder();
+JsonObjectBuilder tempJB;
+JsonObjectBuilder tempVar = Json.createObjectBuilder();
+JsonObjectBuilder l = Json.createObjectBuilder();
+}
+{
+(<COLON>t = <ALPHANUM>{label.add(t.image);})*
+(<StartCurlyBracket>
+t = <ALPHANUM><COLON>
+((v = <DIGITS> {tempJB = Json.createObjectBuilder().add("name", t.image).add("value", v.image).add("type", "int");})
+| (v = <QUOTED_IDENTIFIER>{tempJB = Json.createObjectBuilder().add("name", t.image).add("value", v.image).add("type", "string");})
+|(<DOLLAR> v=<FIELDNAME>
+{v1 = v.image.split("\\."); var = v1[0];
+if (!var.equals(relation)) {throw new IllegalArgumentException("Only construct graph from " + relation);}
+tempJB = Json.createObjectBuilder().add("name", t.image).add("colName", v.image);
+if (block.length == 0) {consType = SQLParseUtil.getSchema(vtable, v1[0], v1[1]);
+tempJB.add("type", consType);}
+else {tempJB.add("type", "Undecided");}
+prop.add(tempJB.build());})
+)
+(<COMMA>t = <ALPHANUM><COLON>
+((v = <DIGITS> {tempJB = Json.createObjectBuilder().add("name", t.image).add("value", v.image).add("type", "int");})
+| (v = <QUOTED_IDENTIFIER>{tempJB = Json.createObjectBuilder().add("name", t.image).add("value", v.image).add("type", "string");})
+|(<DOLLAR> v=<FIELDNAME>
+{v1 = v.image.split("\\."); var = v1[0];
+if (!var.equals(relation)) {throw new IllegalArgumentException("Only construct graph from " + relation);}
+tempJB = Json.createObjectBuilder().add("name", t.image).add("colName", v.image);
+if (block.length == 1) {consType = SQLParseUtil.getSchema(vtable, v1[0], v1[1], block[0]);
+tempJB.add("type", consType);}
+prop.add(tempJB.build());})
+)
+)*
+<EndCurlyBracket>)?
+{
+//l.add("varUsed", tempVar.build());
+l.add("label", label.build());
+l.add("property", prop.build());
+return l.build();}
+}
+
+JsonObject CreateSetStatement():{JsonObjectBuilder l = Json.createObjectBuilder();String consType; Token r;JsonObjectBuilder temp = Json.createObjectBuilder(); JsonArrayBuilder prop = null;Token v;String[] v1;Token v2; Token t; }
+{
+<ON><CREATE><SET> (t = <ALPHANUM>{l.add("varName", t.image);} <DOT>v=<ALPHANUM><EQAL><DOLLAR> r=<FIELDNAME>
+{
+v1 = r.image.split("\\."); consType = SQLParseUtil.getSchema(vtable, v1[0], v1[1]);
+temp = Json.createObjectBuilder().add("name", v.image).add("type", consType).add("rhs", r.image);prop.add(temp.build());}
+)
+(<COMMA> <ALPHANUM> <DOT>v=<ALPHANUM><EQAL><DOLLAR>r=<FIELDNAME>
+{v1 = r.image.split("\\."); consType = SQLParseUtil.getSchema(vtable, v1[0], v1[1]);
+ temp = Json.createObjectBuilder().add("name", v.image).add("type", consType).add("rhs", r.image);prop.add(temp.build());}
+)
+{
+l.add("property", prop.build());
+return l.build();}}
+
+
+
+// may delete
+JsonObject createNodeStatement():
+{JsonObjectBuilder l = Json.createObjectBuilder(); JsonObject node; Token t = null; Token v1; Token v2; JsonObject tempProp; JsonArray nodeProp;JsonObjectBuilder temp = Json.createObjectBuilder();String type;}
+//Merge (:Entity {id:$R.id1, name: $R.s1, type: $R.t1})
+{<MERGE>
+<FBRACKETSTART> (t=<ALPHANUM>{l.add("name", t.image);})? node = createProperty("R")
+<FBRACKETEND>
+{nodeProp = node.getJsonArray("property");}
+(tempProp = CreateSetStatement()
+{if (tempProp.getString("varName").equals(t.image))
+{nodeProp = ParserUtil.concatArray(nodeProp, tempProp.getJsonArray("property"));}
+else{throw new IllegalArgumentException();}})?
+{
+l.add("create", "node");
+l.add("varUsed", node.getJsonObject("varUsed"));
+l.add("label", node.getJsonArray("label"));
+l.add("property", nodeProp);
+return l.build();}
+}
+
+JsonObject createEdgeStatement(JsonArray nodeLabel, JsonArray nodeProp):{Token e = null; Token t;JsonObject node;JsonObjectBuilder edge = Json.createObjectBuilder(); JsonArray constraints;JsonArrayBuilder nodes=Json.createArrayBuilder(); JsonObject temp;JsonObject tempProp;
+Integer nodeID = 0;JsonObjectBuilder l = Json.createObjectBuilder();
+JsonArray edgeLabel; JsonArray edgeProp;
+}
+//MATCH (e1: Entity {id:$R.id1})
+//            MATCH (e2: Entity {id:$R.id2})
+//            Merge (e1)-[co:CO-OCCUR]->(e2)
+//            ON CREATE SET co.docID = $R.dID, co.sentenceID = $R.sID");
+{
+(<MATCH> node=NodeExpressionConstraint(nodeLabel, nodeProp, nodeID){nodes.add(node);nodeID = nodeID +1;})+
+<MERGE> <FBRACKETSTART>(t = <ALPHANUM>{edge.add("inNode", t.image);})<FBRACKETEND>
+(<OUTPATH>|<MINUS>) <StartSQBracket> (e=<ALPHANUM>{edge.add("alias", e.image);})? temp = createProperty("R"){edgeLabel = temp.getJsonArray("label");edgeProp = temp.getJsonArray("property");} <EndSQBracket>
+ (<MINUS>|<INPATH>) <FBRACKETSTART>(t = <ALPHANUM>{edge.add("outNode", t.image);})<FBRACKETEND>
+(tempProp = CreateSetStatement(){if (tempProp.getString("varName").equals(e.image)){ edgeProp = ParserUtil.concatArray(edgeProp, tempProp.getJsonArray("property"));} else{throw new IllegalArgumentException();}})?
+
+
+{
+l.add("create", "edge");
+l.add("nodesConstraints", nodes.build());
+l.add("edge", edge.build());
+l.add("label", edgeLabel);
+l.add("property", edgeProp);
+return l.build();}
+}
+
+
+
+JsonObjectBuilder CreateViewStatement(JsonObjectBuilder jObject, Integer blockID):{
+JsonArray nodeLabel = Json.createArrayBuilder().build(); JsonObjectBuilder realRhs = Json.createObjectBuilder();JsonArray edgeLabel = Json.createArrayBuilder().build();JsonArray nodeProp = Json.createArrayBuilder().build();JsonArray edgeProp = Json.createArrayBuilder().build();
+JsonArrayBuilder nodes = Json.createArrayBuilder(); JsonArrayBuilder edges = Json.createArrayBuilder();JsonArrayBuilder rhs = Json.createArrayBuilder();
+JsonObject temp; JsonObject varUsed =Json.createObjectBuilder().build();String[] key ={"name", "type"};
+}
+{
+(
+(temp=createNodeStatement(){rhs.add(temp);nodeLabel = ParserUtil.concatArray(nodeLabel, temp.getJsonArray("label"));nodeProp = ParserUtil.concatArray(nodeProp, ParserUtil.extractObject(temp.getJsonArray("property"),key));varUsed = temp.getJsonObject("varUsed");})
+|(temp =createEdgeStatement(nodeLabel, nodeProp){rhs.add(temp);edgeLabel = ParserUtil.concatArray(edgeLabel, temp.getJsonArray("label"));edgeProp = ParserUtil.concatArray(edgeProp, ParserUtil.extractObject(temp.getJsonArray("property"),key));})
+)*
+{
+jObject.add("nodeLabel", nodeLabel);
+jObject.add("nodeProperty", nodeProp);
+jObject.add("edgeLabel", edgeLabel);
+jObject.add("edgeProperty", edgeProp);
+realRhs.add("construction", rhs);
+realRhs.add("relationUsed", varUsed);
+jObject.add("RHS", realRhs);
+return jObject;}
+}
+
+//SELECT Statement of ADIL 1.0
+//JsonObjectBuilder SelectStament(JsonObjectBuilder jObject) : {
+//Token t, tuple, db, alias  ;
+//JsonObjectBuilder tempJB = Json.createObjectBuilder();
+//JsonObjectBuilder aliasList = Json.createObjectBuilder();
+//JsonArrayBuilder func = Json.createArrayBuilder();
+//boolean variableArray = false ;
+//JsonArrayBuilder tempTuple = Json.createArrayBuilder();
+//JsonArrayBuilder tempDB = Json.createArrayBuilder();
+//tempJB.add("isFunction", false);
+//}
+//{
+//{
+//int tu = 0;
+//int src = 1;
+//}
+//       <SELECT> ((tuple = <ALPHANUM>{tempJB.add(tuple.image, "field");})|(tuple = <FIELDNAME>{tempJB.add(tuple.image, "path");}))
+//                {tempJB.add("name", tuple.image);}
+//                        (GetFunction(func){JsonObjectBuilder tuplaDet = Json.createObjectBuilder();
+//                        tempJB.add("isFunction", true);  })?
+//
+//
+//       {tempTuple.add(func.build());}
+//        (<AS> alias = <ALPHANUM>{aliasList.add(tuple.image, alias.image);}
+//
+//        )?
+//
+//
+//        (
+//                                                 <COMMA> ((tuple = <ALPHANUM> {tempJB.add(tuple.image, "field");})|(tuple = <FIELDNAME>{tempJB.add(tuple.image, "path");}))
+//                                                 {tempJB.add("name", tuple.image);}
+//                                                 ( GetFunction(func))?
+//                                                 {JsonObjectBuilder tuplaDet = Json.createObjectBuilder();
+//                                                                                        tempJB.add("isFunction", true);  }
+//
+//
+//                                                    {tempTuple.add(func.build());}
+//                                                            (<AS> alias = <ALPHANUM>{aliasList.add(tuple.image, alias.image);}
+//
+//                                                            )?
+//
+//
+//         )*
+//                                                            <FROM> ((db = <ALPHANUM>{tempJB.add(db.image, "field");})|(db = <FIELDNAME>{tempJB.add(db.image, "path");}))
+//
+//                                                            ({Token dbalias;}dbalias=<ALPHANUM>{aliasList.add(db.image, dbalias.image);})?
+//                                                            {
+//                                                                tempDB.add(db.image);
+//                                                                //vtable.insertName(tuple.image);
+//                                                                //vtable.updateType(tuple.image, DataTypeEnum.Undecided.ordinal());
+//
+//                                                            }
+//                                                            (<COMMA> ((db = <ALPHANUM>{tempJB.add(db.image, "field");})|(db = <FIELDNAME>{tempJB.add(db.image, "path");}))
+//                                                             { tempDB.add(db.image); src = src + 1; }
+//                                                             ({Token dbalias;}dbalias=<ALPHANUM>{aliasList.add(db.image, dbalias.image);})?
+//
+//                                                             )?
+//                                                            (
+//                                                                <WHERE>
+//
+//                                                                {
+//                                                                    JsonArrayBuilder predArray = Json.createArrayBuilder();
+//                                                                    JsonObjectBuilder pred = Json.createObjectBuilder();
+//                                                                }
+//                                                                Expression(pred)
+//                                                                {
+//                                                                    predArray.add(pred.build());
+//                                                                }
+//                                                                (
+//                                                                {Token conj;}
+//
+//                                                                        (conj=<AND>|conj=<OR>|conj=<NOT>)
+//                                                                        {predArray.add(conj.image);}
+//                                                                        Expression(pred)
+//                                                                        {
+//                                                                            predArray.add(pred.build());
+//                                                                        }
+//                                                                 )*
+//                                                                 {tempJB.add("WHERE-PREDICATE", predArray.build());}
+//                                                            )?
+//
+//                                                            //
+//
+//
+//{
+//if(tuple.image != "*"){44
+//    tempJB.add("tuple", tempTuple.build());
+//    tempJB.add("source", tempDB.build());
+//}
+//
+//JsonObject source = tempJB.build();
+//if(src>1){
+//jObject.add("JOIN", source);
+//}
+//else {
+//jObject.add("SELECT", source);
+//}
+//}
+//{return jObject;}
+//}
+
+// get function inputs
+List<FuncInput> GetFunction(Integer... block):
+{Token t; Token x; FuncInput f; List<FuncInput> result = new ArrayList<FuncInput>();Integer vID;
+}
+{
+<FBRACKETSTART>
+((
+{f = new FuncInput();
+if (block.length == 1) {f.block = block[0];}
+}
+ (LOOKAHEAD(3) x = <ALPHANUM> <EQAL> {f.key = x.image;})?
+(LOOKAHEAD(3)(t = <ALPHANUM>{f.variable = true; f.name = t.image;})
+|(t = <FIELDNAME>{f.variable = true; f.name = t.image;})
+|(t = <DIGITS>{f.value = Integer.parseInt(t.image); f.type = "Integer";})
+|(t = <QUOTED_IDENTIFIER>{f.value = t.image.substring(1, t.image.length()-1); f.type = "String";})
+|(t = <TRUEEX> {f.value = true; f.type = "Boolean";})
+|(t = <FALSEEX> {f.value = false; f.type = "Boolean";})
+)
+{result.add(f);}
+)
+({f = new FuncInput(); if (block.length == 1) {f.block = block[0];}
+//if (block.length == 1) {f.block = block[0];}
+}
+ <COMMA>
+ (LOOKAHEAD(3) x = <ALPHANUM> <EQAL> {f.key = x.image;})?
+(LOOKAHEAD(3)(t = <ALPHANUM>{f.variable = true; f.name = t.image;})
+|(t = <FIELDNAME>{f.variable = true; f.name = t.image;})
+|(t = <DIGITS>{f.value = Integer.parseInt(t.image); f.type = "Integer";})
+|(t=<QUOTED_IDENTIFIER>{f.value = t.image.substring(1, t.image.length()-1); f.type = "String";})
+|(t = <TRUEEX> {f.value = true; f.type = "Boolean";})
+|(t = <FALSEEX> {f.value = false; f.type = "Boolean";})
+)
+ {result.add(f);}
+ )*)?
+
+<FBRACKETEND>
+{return result;}
+}
+
+
+
+// AWESOME FUNCTION Statement ADIL 1.0
+//todo: add check for localVar
+JsonObjectBuilder AWSMFunction(JsonObjectBuilder l, List<String> names, Integer... block):
+{Token v; Token t;
+String[] v1;
+String funName;
+boolean generateOutput = true;
+Map<String, Integer> localVarMap;
+List<FuncInput> parameter = new ArrayList<FuncInput>();
+List<FuncInput> tempParameter;
+JsonArrayBuilder parameterJson = Json.createArrayBuilder();
+JsonArrayBuilder outputVariable = Json.createArrayBuilder();
+JsonObjectBuilder lhs = Json.createObjectBuilder(); JsonObjectBuilder rhs = Json.createObjectBuilder();}
+{
+{if (block.length > 0) {
+//  localVarMap = localVar.get(0);
+  generateOutput = false;
+  }
+}  (
+    LOOKAHEAD(5)(t = <ALPHANUM>{funName = t.image; l.add("funcName", t.image);})
+    |(v =<FIELDNAME>{
+v1 = v.image.split("\\.");
+FuncInput firstPara = new FuncInput();
+firstPara.name = v1[0]; firstPara.variable = true; if(block.length == 1){firstPara.block = block[0];}
+parameter.add(firstPara);funName = v1[1];l.add("funcName", funName);})
+    )
+    tempParameter = GetFunction(block)
+
+{   //JsonObject funcProp = ParserUtil.validateFunction(t.image); String output = funcProp.getString("output");
+    //List<String> types = Arrays.asList(output.split("#"));
+    parameter.addAll(tempParameter);
+    Pair<List<FuncInput>, List<AwsmDataType>> allInfo = FunctionUtil.validateFunction(funName, parameter, names, vtable);
+    List<FuncInput> input = allInfo.first;
+    List<AwsmDataType> output = allInfo.second;
+    // add input to the rhs of output json
+    for (FuncInput f : input) {
+        parameterJson.add(f.toJsonObject());
+    }
+    // insert output to variable table and add to the lhs
+    for (AwsmDataType d : output) {
+      if (generateOutput) {
+        vtable.insertEntry(variableID, d.toTableEntry());
+        outputVariable.add(d.toJsonObject(variableID));
+        variableID += 1;
+        }
+      else {
+        // if there is block which means it should be a subexpression in map or reduce which deoesn't
+        // generate new variable, so gives it a -1 varID and a block ID since it is a local vitrual variable
+        outputVariable.add(d.toJsonObject(-1, block));
+      }
+    }
+//    if (block.length == 1){
+//        lhs.add("blockID", block[0]);
+//    }
+    lhs.add("variables",outputVariable.build());
+    rhs.add("parameters",parameterJson.build());
+    l.add("LHS", lhs.build()).add("RHS", rhs.build());
+    l.add( "blockType", "FuncCall");
+    return l;
+}
+
+}
+
+JsonObject rangeElement(): {JsonObjectBuilder obj = Json.createObjectBuilder(); Token t;
+Integer vID; String typeString; Object value;}
+{
+(t = <DIGITS> {obj.add("hasValue", true).add("value",  Integer.valueOf(t.image)); return obj.build();})|
+(t = <ALPHANUM> {vID = vtable.searchVariable(t.image).first;
+typeString=vtable.getVarType(vID);
+ value = vtable.getVariableProperties(vID).getValue();
+ if (!typeString.equals("Integer")) {
+     throw new IllegalArgumentException("start of range should be integer");
+ }
+ if (value == null) {
+     obj.add("hasValue", false).add("varName", t.image).add("varID", vID);
+ }
+ else {
+     obj.add("hasValue", true).add("value", (Integer) value); }
+ return obj.build();
+ }
+ )
+}
+
+
+void ListCreation(JsonObjectBuilder jObject):
+{Token t; JsonObjectBuilder lhs = Json.createObjectBuilder();
+JsonObjectBuilder rhs = Json.createObjectBuilder();
+JsonObject start; JsonObject end; JsonObject step;
+Token s; Token e; Token st; String typeString; Object value;
+}
+{
+t = <ALPHANUM>  <COLON><EQAL><StartSQBracket> <RANGE> <FBRACKETSTART>
+start = rangeElement() <COMMA> end  = rangeElement() <COMMA> step = rangeElement()
+<FBRACKETEND> <EndSQBracket>
+{
+////temp.build().getJsonObject("filterVariable").getString("varType");
+////add to vtable
+//vType = types.first;eleType = types.second;
+lhs.add("varName", t.image).add("varID", variableID).add("varType", "List").add("elementType", "Integer");
+rhs.add("start", start).add("end", end).add("step", step);
+ListTableEntry vtEntry = new ListTableEntry(t.image);
+vtEntry.setElementType(DataTypeEnum.valueOf("Integer").ordinal());
+vtable.insertEntry(variableID, vtEntry);
+variableID += 1;
+jObject.add("LHS", lhs.build()).add("RHS", rhs.build());}
+}
+
+
+void FilterAssignment(JsonObjectBuilder jObject):
+{Token t; JsonObjectBuilder lhs = Json.createObjectBuilder(); String vType;
+JsonObjectBuilder temp; Pair<String, Integer> types; Integer eleType;
+}
+{
+// vType should be list or matrix
+t = <ALPHANUM>  <COLON><EQAL> types = WhereExpression(jObject)
+{
+
+//temp.build().getJsonObject("filterVariable").getString("varType");
+//add to vtable
+vType = types.first;eleType = types.second;
+lhs.add("varName", t.image).add("varID", variableID).add("varType", vType);
+VariableTableEntry vtEntry  = createVariableEntry(t.image,vType);
+if ( eleType != 0) {
+  ((ListTableEntry) vtEntry).setElementType(eleType);
+  lhs.add("elementType", DataTypeEnum.values()[eleType].name());
+}
+vtable.insertEntry(variableID, vtEntry);
+variableID += 1;
+jObject.add("LHS", lhs.build());}
+}
+
+// this expression is the helper expression for filterExpression and does not generate any output variable
+Pair<String, Integer> WhereExpression(JsonObjectBuilder jObject, Integer... block):
+{
+  Token v;  JsonObjectBuilder l = Json.createObjectBuilder();
+  JsonObjectBuilder rhs = Json.createObjectBuilder();
+ JsonArrayBuilder rsult = Json.createArrayBuilder();
+ JsonObjectBuilder filteredVar = Json.createObjectBuilder();
+ JsonObjectBuilder iterateVar = Json.createObjectBuilder();
+ String vType;
+ Integer elementType = 0;
+ Integer thisBlock = blockID;
+ blockID += 1;
+ Integer tmRowID = 0;
+ Integer tmColID = 0;
+ }
+{
+// v is the variable to be filtered
+v = <ALPHANUM>
+{
+//    if (localVarType.containsKey(v.image)) {
+//      int iteratedVarID = localVarType.get(v.image);
+//      ListTableEntry lt = (ListTableEntry) vt.getVariableProperties(iteratedVarID);
+//      // get the element type of mapped variable which should be a matrix or a list, if list get the element type
+//      vType = DataTypeEnum.values()[lt.getElementType()].name();
+//      // get the mapped variable's element type
+//      if (vType.equals("List")) {
+//        elementType = (Integer) l.getMetaData();
+//        filteredVar.add("elementType", elementType);
+//      }
+//      filteredVar.add("varName", v.image).add("varType", vType).add("isLocal", "true").add("iteratedVarID", iteratedVarID);
+//    }
+//    else {
+Pair<Integer, Integer> vIDbID = vtable.searchVariable(v.image, block);Integer vID = vIDbID.first; Integer bID = vIDbID.second; vType = vtable.getVarType(vID);
+  filteredVar.add("varName", v.image).add("varType", vType).add("varID", vID);
+  if (bID != -1) {
+    filteredVar.add("localVar", "true").add("blockID", bID);
+  }
+// if the filtered variable is a list, then get the element variable type as the localVar's type. Else, it is a matrix and will be decide later
+if (vType.equals("List")) {
+    ListTableEntry vte = (ListTableEntry) vtable.getVariableProperties(vID);
+    elementType = vte.getElementType();
+    String eleTypeString = DataTypeEnum.values()[elementType].name();
+    filteredVar.add("elementType", eleTypeString);
+    // if List, then just create one TE
+    VariableTableEntry vtEntry  = createVariableEntry("_", eleTypeString, thisBlock);
+    vtEntry.setParentID(vID);
+    vtable.insertEntry(variableID, vtEntry);
+    iterateVar.add("varID", variableID).add("varName", "_").add("varType", eleTypeString);
+    variableID += 1;
+  }
+else {
+    // create two table entries
+    // todo: need to add varIDs and elementType
+    VariableTableEntry vt1Entry  = createVariableEntry("_:Row", vType + "Row", thisBlock);
+    vt1Entry.setParentID(vID);
+    tmRowID = variableID;
+    vtable.insertEntry(tmRowID, vt1Entry);
+    variableID += 1;
+    VariableTableEntry vt2Entry  = createVariableEntry("_:Column", vType + "Column", thisBlock);
+        vt2Entry.setParentID(vID);
+        tmColID = variableID;
+        vtable.insertEntry(tmColID, vt2Entry);
+        variableID += 1;
+}
+
+  //    iterateVar.add("varID", variableID).add("varName", "_").add("varType", eleTypeString);
+  //    jObject.add("iterateVariable", iterateVar.build());
+    //  if (ele.equals("List")) {
+  //  ((ListTableEntry) vtEntry).setElementType(mappedVariableMetaData);
+  //  }
+}
+
+<WHERE> Expression(l, vID, vType, elementType, thisBlock, block) {
+JsonObject lObj = l.build();
+ rsult.add(lObj);
+ // todo: if not list, set elementType based on expression output
+ if (!vType.equals("List"))  {
+     String tmElementType = lObj.getString("iterateType");
+     if (tmElementType.equals("MatrixRow")) {
+         iterateVar.add("varID", tmRowID).add("varName", "_:Row").add("varType", tmElementType);
+     }
+     else {
+         iterateVar.add("varID", tmRowID).add("varName", "_:Row").add("varType", tmElementType);
+     }
+ }
+ }
+({l = Json.createObjectBuilder();} <AND> Expression(l, vID, vType, elementType, thisBlock, block)  {lObj = l.build(); rsult.add(lObj);})*
+{//   rhs.add("varName", v.image).add("varID", vID);
+//     rhs.add("filterVariable", filteredVar.build()).add("filterExpression", rsult.build()).add("blockID", blockID);
+     rhs.add("filterExpression", rsult.build()).add("blockID", thisBlock);
+     jObject.add("filterVariable", filteredVar.build()).add("iterateVar", iterateVar).add("RHS", rhs.build()).add("blockType", "FilterExpression");
+     return new Pair<String, Integer>(vType, elementType);
+    }
+}
+
+
+
+
+//Cypher helper functions and Cypher expression
+JsonArray property(String type,  Integer id,  PGTableEntry vte):{Token t; Token v; String consType; JsonObject varDet;JsonArrayBuilder label; JsonArrayBuilder prop;boolean var = false;Integer vID; JsonArrayBuilder cons = Json.createArrayBuilder();JsonObjectBuilder tempJB;}
+{
+(<COLON>t = <ALPHANUM>{consType = type+"Label";  cons.add(ParserUtil.addCypherConstraint(vte, consType, id, t.image).build());} )*
+
+( <StartCurlyBracket>(t = <ALPHANUM><COLON>((LOOKAHEAD(5)(v=<ALPHANUM>{var = true;})|LOOKAHEAD(5)(v=<DIGITS>)|LOOKAHEAD(5)(v=<QUOTED_IDENTIFIER> {v.image = v.image.substring(1, v.image.length()-1);})){consType = type+"Prop";tempJB = ParserUtil.addCypherConstraint(vte, consType, id, t.image);
+                                                                                                                                                                         if (var) {vID = vtable.searchVariable(v.image).first; tempJB.add("rhs", Json.createObjectBuilder().add("varName", v.image).add("varID", vID).build());}
+                                                                                                                                                                         else {tempJB.add("rhs", v.image);} cons.add(tempJB);})
+)
+(<COMMA>t=<ALPHANUM><COLON>
+({var = false;}
+(v=<ALPHANUM>{var = true;})|LOOKAHEAD(5)(v=<DIGITS>)|LOOKAHEAD(5)(v=<QUOTED_IDENTIFIER>{v.image = v.image.substring(1, v.image.length()-1);})
+)
+{consType = type+"Prop";
+tempJB = ParserUtil.addCypherConstraint(vte, consType, id, t.image);
+if (var) {vID = vtable.searchVariable(v.image).first; tempJB.add("rhs", Json.createObjectBuilder().add("varName", v.image).add("varID", vID).build());}
+else {tempJB.add("rhs", v.image);} cons.add(tempJB);}
+)*
+<EndCurlyBracket>)?
+{return cons.build();}
+}
+
+JsonObject NodeExpression(  Integer nodeID,PGTableEntry vte):{JsonObjectBuilder l = Json.createObjectBuilder(); JsonObjectBuilder node = Json.createObjectBuilder(); Token t; JsonArray constraints = Json.createArrayBuilder().build();JsonArray tempCons;}
+{<FBRACKETSTART> (t=<ALPHANUM>{node.add("alias", t.image);})? {node.add("nodeID", nodeID);}constraints = property("node", nodeID, vte) <FBRACKETEND>
+
+{
+l.add("node", node.build());
+l.add("constraints", constraints);
+return l.build();}
+}
+
+JsonObject PathExpression(Integer nodeID, Integer edgeID, PGTableEntry vte):
+{Token e; Token t;JsonObject node=Json.createObjectBuilder().build();
+JsonObjectBuilder edge=Json.createObjectBuilder();
+JsonArrayBuilder edges = Json.createArrayBuilder();
+JsonArray constraints = Json.createArrayBuilder().build();
+JsonArrayBuilder nodes = Json.createArrayBuilder();
+JsonArray tempCons;
+Integer inNodeID; Integer outNodeID;JsonObjectBuilder l = Json.createObjectBuilder();
+}
+{
+node=NodeExpression(nodeID, vte){inNodeID = nodeID; nodeID = nodeID+1; nodes.add(node.getJsonObject("node"));constraints = ParserUtil.concatArray(constraints, node.getJsonArray("constraints"));}({edge = Json.createObjectBuilder(); edge.add("edgeID",edgeID);edge.add("inNodeID", inNodeID);}(<OUTPATH>|<MINUS>) <StartSQBracket> (t=<ALPHANUM>{edge.add("alias", t.image);})? (tempCons = property("edge", edgeID, vte){constraints = ParserUtil.concatArray(constraints, tempCons);}) <EndSQBracket>
+(<MINUS>|<INPATH>)node = NodeExpression(nodeID, vte){nodes.add(node.getJsonObject("node"));constraints = ParserUtil.concatArray(constraints, node.getJsonArray("constraints"));outNodeID = nodeID; edge.add("outNodeID", outNodeID);inNodeID=nodeID; nodeID = nodeID +1; edgeID = edgeID+1; edges.add(edge.build());})*
+
+{
+l.add("edge", edges.build());
+l.add("node", nodes.build());
+l.add("constraints", constraints);
+l.add("nodeID", nodeID);
+l.add("edgeID", edgeID);
+return l.build();}
+}
+
+
+
+
+
+
+JsonObjectBuilder CypherStatement(JsonObjectBuilder l, Integer... block):
+{Token v; Token t; Token g; Token var;
+JsonArray node = Json.createArrayBuilder().build();
+JsonArray edge = Json.createArrayBuilder().build();
+JsonArrayBuilder path = Json.createArrayBuilder();
+JsonArrayBuilder returns = Json.createArrayBuilder();
+JsonArray constraints = Json.createArrayBuilder().build();
+JsonObject temp;
+JsonObjectBuilder tempNode;
+JsonObjectBuilder tempEdge;
+JsonObjectBuilder tempCons;
+JsonObjectBuilder lhs = Json.createObjectBuilder();
+JsonObjectBuilder rhs = Json.createObjectBuilder();
+String type; String name; String vteType; String obj;
+Integer vID;
+Integer nodeID = 0;
+Integer edgeID =0;
+PGTableEntry xt;}
+{
+{
+lhs.add("type", "cypherBinding");
+}
+var=<ALPHANUM> <COLON><EQAL>
+<AwsmCypher><FBRACKETSTART> g = <ALPHANUM>{
+                                       vID = vtable.searchVariable(g.image).first;
+                                       vteType = vtable.getVarType(vID);
+                                       if (vteType.equals("PropertyGraph")){
+                                       xt = (PGTableEntry) vtable.getVariableProperties(vID);}
+                                       else{throw new IllegalArgumentException(g.image + "no graph");}
+                                       rhs.add("graphName", g.image);
+                                       rhs.add("graphID", vID);
+                                       }
+                                       <COMMA>
+<MATCH> t=<ALPHANUM><EQAL> {path.add(t.image);} temp = PathExpression(nodeID, edgeID, xt)
+{nodeID = temp.getInt("nodeID");
+edgeID = temp.getInt("edgeID");
+node = ParserUtil.concatArray(node, temp.getJsonArray("node"));
+edge = ParserUtil.concatArray(edge, temp.getJsonArray("edge"));
+constraints = ParserUtil.concatArray(constraints, temp.getJsonArray("constraints"));
+}
+(<COMMA>
+(t=<ALPHANUM><EQAL> {path.add(t.image);})? temp = PathExpression(nodeID, edgeID, xt)
+{nodeID = temp.getInt("nodeID");
+edgeID = temp.getInt("edgeID");
+node = ParserUtil.concatArray(node, temp.getJsonArray("node"));
+edge = ParserUtil.concatArray(edge, temp.getJsonArray("edge"));
+constraints = ParserUtil.concatArray(constraints, temp.getJsonArray("constraints"));}
+)*
+// <FBRACKETSTART> {tempNode.add("nodeID", nodeID); nodeID = nodeID +1;}(t=<ALPHANUM>{tempNode.add("name", t.image);})? (<COLON><ALPHANUM>)*(<PROPERTY>)? <FBRACKETEND>
+// ((<OUTPATH>|<MINUS>)(<StartSQBracket> (t=<ALPHANUM>{edge.add(t.image);})? (<COLON><ALPHANUM>)*(<PROPERTY>)? <EndSQBracket>)?(<MINUS>|<INPATH> )<FBRACKETSTART> (t=<ALPHANUM>{node.add(t.image);})? (<COLON><ALPHANUM>)*(<PROPERTY>)?<FBRACKETEND>
+// )*
+// {JsonArray nodesArray = node.build();
+// JsonArray edgesArray = edge.build();
+// }
+{
+JsonArray nodeArray = ParserUtil.extractKey(node,"alias");
+JsonArray edgeArray = ParserUtil.extractKey(edge,"alias");
+JsonArray pathArray = path.build();
+}
+
+ <RETURN> (
+       LOOKAHEAD(3)(t=<FIELDNAME> {type="property"; name = t.image;})
+     | LOOKAHEAD(3)((v=<ALPHANUM>)<FBRACKETSTART>(t=<ALPHANUM>)<FBRACKETEND>{type="cypherFunction"; name = v.image+"("+t.image+ ")";})
+     |(t=<ALPHANUM>{type=getCypherObjectType(nodeArray, edgeArray, pathArray, t.image);name = t.image;})
+)
+ {JsonObjectBuilder tempJB = Json.createObjectBuilder();
+ tempJB.add("name", name); tempJB.add("objectType", type);
+ returns.add(tempJB.build());}
+ (<COMMA>  (
+                  LOOKAHEAD(3)((t=<ALPHANUM>)<DOT>(v=<ALPHANUM>) {obj=getCypherObjectType(nodeArray, edgeArray, pathArray, t.image);type=xt.getProperty(v.image ,obj); name = t.image+"."+v.image;})
+                | LOOKAHEAD(3)((v=<ALPHANUM>)<FBRACKETSTART>(t=<ALPHANUM>)<FBRACKETEND>{type="cypherFunction"; name = v.image+"("+t.image+ ")";})
+                |(t=<ALPHANUM>{type=getCypherObjectType(nodeArray, edgeArray, pathArray, t.image);name = t.image;})
+           )
+  {tempJB = Json.createObjectBuilder();
+  tempJB.add("name", name); tempJB.add("objectType", type);
+  returns.add(tempJB.build());})*
+  <FBRACKETEND>
+ {lhs.add("varName", var.image);
+ lhs.add("varID", variableID);
+ lhs.add("schema", returns.build());
+ if (block.length == 1){
+     lhs.add("blockID", block[0]);
+     }
+ l.add("LHS", lhs.build());
+ RelationTableEntry rte = new RelationTableEntry(var.image, JsonUtil.jsonArrayToMap(returns.build(), "name", "objectType"), block);
+ vtable.insertEntry(variableID, rte);
+ variableID = variableID+1;
+ rhs.add("node", node);
+ rhs.add("edge", edge);
+ rhs.add("constraints", constraints);
+ l.add("RHS", rhs);
+ return l;}
+ }
+
+
+//
+//
+//// FOR ALL ADIL 1.0
+//JsonObjectBuilder ForAllExpression(JsonObjectBuilder l, Integer... block):
+//{
+//    Token t, col,partVar;
+//    JsonObjectBuilder temp = Json.createObjectBuilder();
+//    JsonObjectBuilder tempJB = Json.createObjectBuilder();
+//    JsonArrayBuilder array = Json.createArrayBuilder();
+//    String elementType;
+//    Integer vID;
+//    JsonArrayBuilder returnVar = Json.createArrayBuilder();
+//    VariableTableEntry vte;
+//    Integer thisBlock = blockID;
+//    blockID = blockID +1;
+//
+//}
+//{
+//<FORALL> t = <ALPHANUM> {temp.add("varName", t.image);}<COLON> col = <ALPHANUM>{tempJB.add("name", col.image);
+//vID = vtable.searchVariable(col.image, block);
+//ListTableEntry xt = (ListTableEntry) vtable.getVariableProperties(vID);
+//int type = xt.getElementType();elementType=DataTypeEnum.values()[type].name();
+//tempJB.add("varID", vID);
+//tempJB.add("elementType", elementType);
+//VariableTableEntry vtEntry;
+//if (elementType.equals("Undecided")){
+//vtEntry  = new  LiteralTableEntry(t.image, DataTypeEnum.valueOf(elementType).ordinal(), thisBlock);
+//}
+//else
+//{vtEntry  = vtable.createVariableEntry(t.image,elementType , thisBlock);}
+//vtable.insertEntry(variableID, vtEntry);
+//temp.add("varID", variableID);
+//temp.add("blockID", thisBlock);
+//variableID = variableID+1;
+//temp.add("type", elementType);
+//l.add("indexVar", temp.build());
+//}
+////             (
+////                     (
+////                                 <StartSQBracket>
+////                                 {
+////                                           JsonObjectBuilder pred = Json.createObjectBuilder();
+////                                 }
+////                                  Expression(pred)
+////                                            {
+////                                               tempJB.add("PREDICATE", pred.build());
+////                                            }
+////                                 <EndSQBracket>
+////                     )
+////                     |
+////                     (  <PARTITION> <ON> partVar = <ALPHANUM> ){tempJB.add("partfield",partVar.image);}
+////
+////             )?
+//             (<StartCurlyBracket>
+//
+//
+//                                                        (
+//                                                        ({JsonObjectBuilder tempx = Json.createObjectBuilder();} (LOOKAHEAD(5)AssignmentStatement(tempx, thisBlock)|LOOKAHEAD(5)ForAllExpression(tempx, thisBlock)|SQLPASS(tempx, thisBlock))<SEMICOLON> {array.add(tempx.build());})
+//                                                        //|({JsonObjectBuilder tempy = Json.createObjectBuilder();}ForAllExpression(tempy)<SEMICOLON>{array.add(tempy.build());})
+//                                                        )+
+//
+//              <EndCurlyBracket>
+//              ) <RETURN> (t = <ALPHANUM> {
+//                vID = vtable.searchVariable(t.image, thisBlock);
+//                vte = vtable.getVariableProperties(vID);
+//                if (block.length != 0) {vte.setBlockID(block[0]);}
+//                                else {vte.setBlockID(-1);}
+//                returnVar.add(Json.createObjectBuilder().add("varName", t.image).add("inLoopVarID", vID).add("varID", variableID).add("varType", DataTypeEnum.values()[vte.getType()].name()).build());
+//                vtable.insertEntry(variableID, vte);
+//                variableID = variableID+1;} )
+//              (<COMMA> t = <ALPHANUM> {
+//                vID = vtable.searchVariable(t.image, thisBlock);
+//                vte = vtable.getVariableProperties(vID);
+//                if (block.length != 0) {vte.setBlockID(block[0]);}
+//                else {vte.setBlockID(-1);}
+//                 vtable.insertEntry(variableID, vte);
+//                returnVar.add(Json.createObjectBuilder().add("varName", t.image).add("inLoopVarID", vID).add("varID", variableID).add("varType", DataTypeEnum.values()[vte.getType()].name()).build());
+//                variableID = variableID+1;}
+//               )*
+//
+//{
+//l.add("source", tempJB.build());
+//l.add("returnVar", returnVar.build());
+//l.add("inLoop", array.build());
+//int length = 10;
+//boolean useLetters = true;
+//boolean useNumbers = false;
+////String generatedString = RandomStringUtils.random(length, useLetters, useNumbers);
+////l.add("name", col.image+":ForAll");
+////l.add("lid",generatedString);
+//
+////l.add("FORALL", tempJB.build());
+//
+//}
+//{return l;}
+//
+//}
+
+// Map Expression instead of Forloop; The validation for element in map is skipped except function.
+void MapExpression(JsonObjectBuilder jObject): {
+Token var; Token tempVar; Pair<String, Integer> lambdaVar; JsonObjectBuilder mappedVar = Json.createObjectBuilder();
+Integer vID; JsonObjectBuilder rhs = Json.createObjectBuilder();
+JsonObjectBuilder lhs = Json.createObjectBuilder(); String resultEleType; String metadata = null;
+boolean isTuple = false;
+Integer mappedVariableMetaData=0;
+Integer thisBlock; String ele; String vType; Token t; JsonObject rhsResult; ListTableEntry resultEntry;
+JsonArray output = Json.createArrayBuilder().build();
+JsonObjectBuilder iterateVar = Json.createObjectBuilder();
+}
+{
+t=<ALPHANUM>
+<COLON><EQAL>
+var=<ALPHANUM>{
+    thisBlock = blockID;
+    rhs.add("blockID", thisBlock);
+    blockID += 1;
+    vID = vtable.searchVariable(var.image).first;
+    // get the type of the mapped variable which should be a list and get the element type which should be
+    // the type of the iterate local variable, and create tableentry for the lcoal variable with the block id and the parent id.
+    vType = vtable.getVarType(vID);
+    if (!vType.equals("List")) {
+        throw new IllegalArgumentException("Pass a list variable to Map");
+    }
+    mappedVar.add("varID", vID).add("varType", "List").add("varName", var.image);
+    ListTableEntry lt = (ListTableEntry) vtable.getVariableProperties(vID);
+    // get the element type of mapped variable which should be a matrix or a list, if list get the element type
+    ele = DataTypeEnum.values()[lt.getElementType()].name();
+    mappedVar.add("elementType", ele);
+    // get the mapped variable's element type
+    if (ele.equals("List")) {
+      mappedVariableMetaData = (Integer) lt.getMetaData();
+        mappedVar.add("elementTypeofElementList", DataTypeEnum.values()[mappedVariableMetaData].name());
+    }
+    jObject.add("mappedVariable", mappedVar.build());
+}
+<DOT> <MAP>
+<FBRACKETSTART>
+tempVar=<ALPHANUM> {
+iterateVar.add("varID", variableID).add("varName", tempVar.image).add("varType", ele);
+jObject.add("iterateVariable", iterateVar.build());
+VariableTableEntry vtEntry  = vtable.createVariableEntry(tempVar.image, ele, thisBlock);
+if (ele.equals("List")) {
+((ListTableEntry) vtEntry).setElementType(mappedVariableMetaData);
+}
+vtEntry.setParentID(vID);
+vtable.insertEntry(variableID, vtEntry);
+variableID += 1;
+} <MAPTO>
+(
+LOOKAHEAD(5) (WhereExpression(rhs, thisBlock){rhsResult = rhs.build(); resultEleType = rhsResult.getJsonObject("filterVariable").getString("varType");
+                                    if (resultEleType.equals("List")) {metadata = rhsResult.getJsonObject("filterVariable").getString("elementType");}})
+|LOOKAHEAD(10)(MATHASSIGNMENT(rhs, "~", thisBlock){rhs.add( "blockType", "OperationAssign");rhsResult = rhs.build();resultEleType = rhsResult.getJsonObject("LHS").getString("varType");})
+|LOOKAHEAD(10) LISTASSIGNMENT(rhs, "~", thisBlock){rhsResult = rhs.build();resultEleType = "List";}
+|LOOKAHEAD(10) (TUPLEEXTRACTION(rhs, "~", thisBlock){rhs.add("blockType", "TupleExtraction");rhsResult = rhs.build();resultEleType = rhsResult.getJsonObject("LHS").getString("varType");})
+|LOOKAHEAD(20) (AWSMFunction(rhs, Arrays.asList("_"), thisBlock) {rhsResult = rhs.build();
+// if only one type, get eleType, else, eletype should be tuple and the metadata should be kept
+output = rhsResult.getJsonObject("LHS").getJsonArray("variables");
+if (output.size() == 1) {
+resultEleType = rhsResult.getJsonObject("LHS").getJsonArray("variables").getJsonObject(0).getString("varType");}
+else {
+resultEleType = "Tuple";
+isTuple = true;
+}
+})
+|LOOKAHEAD(10)(MATRIXASSIGNMENT(rhs, "~", thisBlock){rhsResult = rhs.build();resultEleType = "Matrix";})
+|LOOKAHEAD(10)(LITERALASSIGNMENT(rhs, "~", thisBlock){rhsResult = rhs.build();resultEleType = rhsResult.getJsonObject("LHS").getString("varType");})
+|LOOKAHEAD(10) (TUPLEASSIGNMENT(rhs, "~", thisBlock){rhs.add("blockType", "TupleAssign"); rhsResult = rhs.build();resultEleType = "Tuple";} )
+|ConstructGraphFromRelationExpression(rhs, thisBlock) {rhsResult = rhs.build(); resultEleType = "PropertyGraph";}
+|(SQLExpression(rhs, false, thisBlock) {rhsResult = rhs.build(); resultEleType = "Relation";})
+|(CypherForMap(rhs, thisBlock) {rhsResult = rhs.build(); resultEleType = "Relation";})
+//todo: add Cypher Expression
+)
+<FBRACKETEND>
+{
+// this is result
+lhs.add("varName", t.image).add("varID", variableID).add("varType", "List").add("elementType", resultEleType);
+resultEntry = new ListTableEntry(t.image);
+resultEntry.setElementType(DataTypeEnum.valueOf(resultEleType).ordinal());
+// if a list of lists, get the elementType of element list
+if (metadata != null) {
+    lhs.add("listMetaData", metadata);
+    resultEntry.setMetaData(metadata);
+}
+// if a list of tuples, get the tuples types
+if (isTuple) {
+    List<String> tupleTypes = JsonUtil.jsonArrayToStringListWithKey(output, "varType");
+    lhs.add("tupleTypes", JsonUtil.arrayToJsonArray(tupleTypes));
+    resultEntry.setMetaData(tupleTypes);
+}
+
+// create tableentry and add to vtable
+vtable.insertEntry(variableID, resultEntry);
+variableID += 1;
+jObject.add("LHS", lhs.build()).add("RHS", rhsResult);
+}
+}
+
+// for reduce, the two iterate Var temp1, temp2, should have the same type with the return type of
+// reduceExpression(temp1, temp2), this is not required for map
+void ReduceExpression(JsonObjectBuilder jObject): {
+Token t; Token tempVar1; Token tempVar2; Token var;Integer thisBlock; String vType;
+Integer vID; JsonObjectBuilder rhs = Json.createObjectBuilder();
+JsonObjectBuilder lhs = Json.createObjectBuilder();
+JsonObjectBuilder reducedVar = Json.createObjectBuilder();VariableTableEntry vtEntry;
+String ele; JsonObject rhsResult;VariableTableEntry resultEntry;
+JsonObjectBuilder leftLocalVar = Json.createObjectBuilder();
+JsonObjectBuilder rightLocalVar = Json.createObjectBuilder();
+}
+{
+t=<ALPHANUM>
+<COLON><EQAL>
+var=<ALPHANUM>{
+    thisBlock = blockID;
+    rhs.add("blockID", thisBlock);
+    blockID += 1;
+    vID = vtable.searchVariable(var.image).first;
+    // get the type of the reduced variable which should be a list and get the element type which should be
+    // the type of the iterate local variable, and create tableentry for the lcoal variable with the block id and the parent id.
+    vType = vtable.getVarType(vID);
+    if (!vType.equals("List")) {
+        throw new IllegalArgumentException("Pass a list variable to Map");
+    }
+    reducedVar.add("varID", vID).add("varType", "List").add("varName", var.image);
+    ListTableEntry lt = (ListTableEntry) vtable.getVariableProperties(vID);
+    // get the element type of reduced variable which should be a matrix or a list
+    ele = DataTypeEnum.values()[lt.getElementType()].name();
+    reducedVar.add("elementType", ele);
+    // get the mapped variable's element type
+//    if (ele.equals("List")) {
+//      mappedVariableMetaData = (Integer) lt.getMetaData();
+//        mappedVar.add("elementTypeofElementList", DataTypeEnum.values()[mappedVariableMetaData].name());
+//    }
+jObject.add("reducedVariable", reducedVar);
+}
+<DOT> <REDUCE>
+<FBRACKETSTART>
+<FBRACKETSTART> tempVar1=<ALPHANUM> <COMMA> tempVar2=<ALPHANUM> <FBRACKETEND> {
+leftLocalVar.add("varID", variableID).add("varName", tempVar1.image).add("varType", ele);
+jObject.add("firstLocalVariable", leftLocalVar.build());
+vtEntry  = vtable.createVariableEntry(tempVar1.image, ele, thisBlock);
+vtEntry.setParentID(vID);
+vtable.insertEntry(variableID, vtEntry);
+variableID += 1;
+rightLocalVar.add("varID", variableID).add("varName", tempVar2.image).add("varType", ele);
+jObject.add("secondLocalVariable", rightLocalVar.build());
+vtEntry  = vtable.createVariableEntry(tempVar2.image, ele, thisBlock);
+vtEntry.setParentID(vID);
+vtable.insertEntry(variableID, vtEntry);
+variableID += 1;
+} <MAPTO>
+//WhereExpression(rhs, thisBlock){resultEleType = rhs.getJsonObject("filterVariable").getString("varType");
+//                                    if (resultEleType.equals("List")) {metadata = rhs.getJsonObject("filterVariable").getString("elementType");}}
+//|ConstructGraphFromRelationExpression(rhs, thisBlock) {resultEleType = "PropertyGraph";}
+((AWSMFunction(rhs, Arrays.asList("~"), thisBlock) {rhsResult = rhs.build(); vType = rhsResult.getJsonObject("LHS").getJsonArray("variables").getJsonObject(0).getString("varType");})
+|(SQLExpression(rhs, false, thisBlock) {rhsResult = rhs.build(); vType = "Relation";}))
+<FBRACKETEND>
+{
+if (!vType.equals(ele)) {throw new IllegalArgumentException("Reduce expression should return an output with the same type as element inside the reduced variable");}
+lhs.add("varName", t.image).add("varID", variableID).add("varType", vType);
+resultEntry = vtable.createVariableEntry(t.image,vType);
+// create tableentry and add to vtable
+vtable.insertEntry(variableID, resultEntry);
+variableID += 1;
+jObject.add("LHS", lhs.build()).add("RHS", rhsResult);}
+}
+
+//ExecuteSQLPhysical Database Direct
+
+JsonObjectBuilder DBPASS(JsonObjectBuilder jObject, Integer... block):
+{
+Token t; Token s;Token x = null;
+JsonObjectBuilder lhs = Json.createObjectBuilder();
+JsonObjectBuilder rhs = Json.createObjectBuilder();
+JsonObjectBuilder tempJB = Json.createObjectBuilder();
+JsonArrayBuilder typesBuilder = Json.createArrayBuilder();
+JsonArrayBuilder schemasBuilder = Json.createArrayBuilder();
+JsonArray names;
+JsonArray types;
+JsonArray schemas;
+String[] key = {"name", "objectType"};
+JsonObjectBuilder varObj = Json.createObjectBuilder();
+}
+{
+
+t=<ALPHANUM>{lhs.add("varName", t.image).add("varID", variableID).add("varType", "cypherBinding");}
+<LESS> (s=<ALPHANUM>{varObj.add(key[0], s.image);}<COLON> ( s=<STRING>|s=<DATE>|s=<INT>|s=<NODE>|s=<PATH>){varObj.add(key[1], s.image); schemasBuilder.add(varObj);})
+(<COMMA>s=<ALPHANUM>{varObj=Json.createObjectBuilder().add(key[0], s.image);}<COLON> ( s=<STRING>|s=<DATE>|s=<INT>|s=<NODE>|s=<PATH>) {varObj.add(key[1], s.image); schemasBuilder.add(varObj);})*
+<GREATER>
+<COLON><EQAL> ((<EXECUTECYPHER>{})|(<EXECUTESQL>{}) x = quetedStatement())
+
+{
+JsonArray usedVar = SQLParseUtil.usedVariables(x.image, vtable, block);
+rhs.add("statement", x.image.substring(1, x.image.length()-1));
+rhs.add("varUsed", usedVar);
+//JsonObject cr = CypherUtil.handleCypherQuery(x.image, vtable);
+//names =  cr.getJsonArray("names");
+//rhs.add("varUsed", cr.getJsonArray("varUsed"));
+//types = typesBuilder.build();
+//if (names.size()!=types.size()){
+//throw new IllegalArgumentException("the output schema does not match with its Cypher return variables");
+//}
+//for (int i = 0; i < types.size(); i++) {
+//    tempJB = Json.createObjectBuilder();
+//    tempJB.add("name", names.getString(i));
+//    tempJB.add("objectType", types.getString(i));
+//    schemasBuilder.add(tempJB.build());
+//}
+schemas = schemasBuilder.build();
+lhs.add("schema", schemas);
+RelationTableEntry vtEntry = new RelationTableEntry(t.image, JsonUtil.jsonArrayToMap(schemas, "name", "objectType"), block);
+vtable.insertEntry(variableID, vtEntry);
+variableID = variableID+1;
+jObject.add("LHS", lhs.build()).add("RHS", rhs.build());
+return jObject;}}
+//Inside Pass through
+
+
+Token quetedStatement() : {Token t; Token x;}
+
+{
+  (<FBRACKETSTART> x = <QUOTED_IDENTIFIER> <FBRACKETEND>){System.out.println(x.image);}
+  {return x;}
+}
+
+
+JsonArray CypherSchema(): {
+Token s;
+JsonArrayBuilder schemasBuilder = Json.createArrayBuilder();
+String[] key = {"name", "objectType"};
+JsonObjectBuilder varObj = Json.createObjectBuilder();
+}{
+<LESS> s=<ALPHANUM>{varObj.add(key[0], s.image);}<COLON> ( s=<STRING>|s=<DATE>|s=<INT>|s=<NODE>|s=<PATH>){varObj.add(key[1], s.image); schemasBuilder.add(varObj);}
+(<COMMA>s=<ALPHANUM>{varObj=Json.createObjectBuilder().add(key[0], s.image);}<COLON> ( s=<STRING>|s=<DATE>|s=<INT>|s=<NODE>|s=<PATH>) {varObj.add(key[1], s.image); schemasBuilder.add(varObj);})*
+<GREATER>
+{return schemasBuilder.build();}
+}
+
+
+void CypherExpression(JsonObjectBuilder jObject, Integer... block): {
+ Token t; Token x;
+ JsonObjectBuilder rhs = Json.createObjectBuilder();
+ JsonObjectBuilder tempJB = Json.createObjectBuilder();
+ JsonArrayBuilder typesBuilder = Json.createArrayBuilder();
+ JsonArrayBuilder schemasBuilder = Json.createArrayBuilder();
+ JsonArray names;
+ JsonArray types;
+ JsonArray schemas;
+ Token loc = null;
+ }
+{<EXECUTECYPHER> <FBRACKETSTART>
+((loc = <QUOTED_IDENTIFIER> { rhs.add("database", loc.image.substring(1, loc.image.length()-1));}
+| loc = <ALPHANUM> {rhs.add("graphID", vtable.searchVariable(loc.image, block).first);})
+ )?
+ <COMMA> x = <QUOTED_IDENTIFIER>  <FBRACKETEND>
+{
+ JsonArray usedVar = SQLParseUtil.usedVariables(x.image, vtable, block);
+ rhs.add("statement", x.image.substring(1, x.image.length()-1));
+ rhs.add("varUsed", usedVar);
+ //JsonObject cr = CypherUtil.handleCypherQuery(x.image, vtable);
+ //names =  cr.getJsonArray("names");
+ //rhs.add("varUsed", cr.getJsonArray("varUsed"));
+ //types = typesBuilder.build();
+ //if (names.size()!=types.size()){
+ //throw new IllegalArgumentException("the output schema does not match with its Cypher return variables");
+ //}
+ //for (int i = 0; i < types.size(); i++) {
+ //    tempJB = Json.createObjectBuilder();
+ //    tempJB.add("name", names.getString(i));
+ //    tempJB.add("objectType", types.getString(i));
+ //    schemasBuilder.add(tempJB.build());
+ //}
+ jObject.add("RHS", rhs.build());
+ }
+}
+
+void CYPHERPASS(JsonObjectBuilder jObject, Integer... block): {
+Token t;
+JsonArray schemas;
+JsonObjectBuilder lhs = Json.createObjectBuilder();
+}
+{
+t=<ALPHANUM>{lhs.add("varName", t.image).add("varID", variableID).add("varType", "cypherBinding");jObject.add("LHS", lhs.build());}
+schemas = CypherSchema()
+<COLON><EQAL>
+CypherExpression(jObject, block)
+{
+jObject.add("schema", schemas);
+RelationTableEntry vtEntry = new RelationTableEntry(t.image, JsonUtil.jsonArrayToMap(schemas, "name", "objectType"), block);
+vtable.insertEntry(variableID, vtEntry);
+variableID = variableID+1;
+}}
+
+void CypherForMap(JsonObjectBuilder jObject, Integer... block): {
+Token t;
+JsonArray schemas;
+}
+{
+<FBRACKETSTART>
+schemas = CypherSchema()
+<FBRACKETEND>
+CypherExpression(jObject, block)
+{
+jObject.add("schema", schemas).add("blockType", "Neo4jQuery");
+}}
+
+
+
+void SOLRPASS(JsonObjectBuilder jObject, Integer... block): {
+Token t = new Token();  Token x = new Token();
+Token s = new Token(); Token loc = new Token();
+JsonObjectBuilder lhs = Json.createObjectBuilder();
+JsonObjectBuilder rhs = Json.createObjectBuilder();
+Map<String, String> schemas;
+JsonArrayBuilder colBuild = Json.createArrayBuilder();
+String[] key = {"name", "objectType"};
+JsonArray tempAry;
+JsonArrayBuilder tempAryBuild = Json.createArrayBuilder();
+JsonObjectBuilder varObj = Json.createObjectBuilder();
+}
+{
+t=<ALPHANUM>{lhs.add("varID", variableID).add("varName", t.image).add("varType", "Relation");}
+(<LESS>
+(s=<ALPHANUM>{varObj.add(key[0], s.image); colBuild.add(s.image);}<COLON> ( s=<STRING>|s=<DATE>|s=<INT>|s=<TEXT>){varObj.add(key[1], s.image); tempAryBuild.add(varObj);})
+(<COMMA>s=<ALPHANUM>{varObj = Json.createObjectBuilder().add(key[0], s.image); colBuild.add(s.image);}<COLON>
+( s=<STRING>|s=<DATE>|s=<INT>|s=<TEXT>) {varObj.add(key[1], s.image); tempAryBuild.add(varObj);})*
+<GREATER>
+)
+<COLON><EQAL>
+<EXECUTESOLR> <FBRACKETSTART> loc = <QUOTED_IDENTIFIER> {rhs.add("collection", loc.image.substring(1, loc.image.length()-1));} <COMMA>
+x = <TRIPLE_QUOTED> {rhs.add("statement", x.image.substring(3, x.image.length()-3));} <FBRACKETEND>
+{
+if(block.length!=0){
+lhs.add("blockID", block[0]);}
+tempAry = tempAryBuild.build();
+lhs.add("schemas", tempAry);
+lhs.add("columns", colBuild.build());
+schemas = JsonUtil.jsonArrayToMap(tempAry,key[0], key[1]);
+RelationTableEntry vtEntry = new RelationTableEntry(t.image, schemas, block);
+vtable.insertEntry(variableID, vtEntry);
+variableID = variableID+1;
+jObject.add("LHS", lhs.build()).add("RHS", rhs.build());
+}
+}
+
+
+JsonArray SQLExpression(JsonObjectBuilder jObject, boolean assignedSchema, Integer... block): {
+Token x; Token loc = new Token();
+Map<String, String> schemas;
+JsonObjectBuilder rhs = Json.createObjectBuilder();
+String[] key = {"name", "objectType"};
+JsonArray tempAry = Json.createArrayBuilder().build();
+JsonArray usedTable = Json.createArrayBuilder().build();
+boolean isInDB = false;
+}
+{
+<EXECUTESQL> <FBRACKETSTART> (loc = <QUOTED_IDENTIFIER> {isInDB = true;})?  <COMMA> x = <QUOTED_IDENTIFIER>  <FBRACKETEND>
+{
+if (isInDB) {
+    jObject.add("blockType", "SQLQuery");
+    RDBMSUtils DB_UTILS = new RDBMSUtils(config, loc.image.substring(1, loc.image.length()-1));
+    if (!assignedSchema) {
+        tempAry = SQLParseUtil.handleSQL(DB_UTILS, x.image, vtable, block);
+//        schemas = JsonUtil.jsonArrayToMap(tempAry,key[0], key[1]);
+        usedTable = SQLParseUtil.usedTables(x.image, true, vtable, block);}
+}
+else {
+  // only validate and get the schema when it is not local
+    jObject.add("blockType", "AwsmSQL");
+    tempAry = SQLParseUtil.handleAwsmSQL(x.image, vtable, block);
+    // add used Variables
+    usedTable = SQLParseUtil.usedTables(x.image, false, vtable, block);
+//    schemas = JsonUtil.jsonArrayToMap(tempAry,key[0], key[1]);
+//    jObject.add("schemas", schemas);
+}
+}
+
+{jObject.add("schema", tempAry);
+JsonArray usedVar = SQLParseUtil.usedVariables(x.image, vtable, block);
+ rhs.add("statement", x.image.substring(1, x.image.length()-1));
+ rhs.add("varUsed", usedVar);
+ rhs.add("tableUsed", usedTable);
+ if (isInDB) {
+ rhs.add("database", loc.image.substring(1, loc.image.length()-1));
+ }
+ jObject.add("RHS", rhs);
+ return tempAry;
+ }
+}
+
+
+void SQLPASS(JsonObjectBuilder jObject): {
+Token t; Token s = new Token();Token x; Token loc = new Token();
+Map<String, String> schemas;
+JsonObjectBuilder lhs = Json.createObjectBuilder();
+JsonObjectBuilder rhs = Json.createObjectBuilder();
+String[] key = {"name", "objectType"};
+JsonArray tempAry;
+JsonObjectBuilder temp;
+JsonArrayBuilder tempAryBuild = Json.createArrayBuilder();
+JsonObjectBuilder varObj = Json.createObjectBuilder();
+boolean assignedSchema = false;
+}
+{
+t=<ALPHANUM>{lhs.add("varID", variableID).add("varName", t.image).add("varType", "Relation");jObject.add("LHS", lhs.build());}
+(<LESS>
+(s=<ALPHANUM>{varObj.add(key[0], s.image);}<COLON> ( s=<STRING>|s=<DATE>|s=<INT>|s=<TEXT>){varObj.add(key[1], s.image); tempAryBuild.add(varObj);})
+(<COMMA>s=<ALPHANUM>{varObj = Json.createObjectBuilder().add(key[0], s.image);}<COLON>
+( s=<STRING>|s=<DATE>|s=<INT>|s=<TEXT>) {varObj.add(key[1], s.image); tempAryBuild.add(varObj);})*<GREATER> {assignedSchema=true;})?
+<COLON><EQAL>
+
+tempAry = SQLExpression(jObject, assignedSchema)
+{
+if (assignedSchema) {
+  tempAry = tempAryBuild.build();
+  jObject.add("schemas", tempAry);
+   }
+//else {
+//  temp = jObject;
+//  tempAry = temp.build().getJsonArray("schemas");}
+//if(block.length!=0){
+//lhs.add("blockID", block[0]);}
+schemas = JsonUtil.jsonArrayToMap(tempAry,key[0], key[1]);
+//lhs.add("schemas", tempAry);
+RelationTableEntry vtEntry = new RelationTableEntry(t.image, schemas);
+vtable.insertEntry(variableID, vtEntry);
+variableID = variableID+1;}
+}
+
+
+JsonObjectBuilder MATRIXASSIGNMENT(JsonObjectBuilder l, String name, Integer... block):
+{MatrixTableEntry vtEntry; Integer rowSize = 0; String hasValue = "true";
+Integer size = 0; Integer size2 = 0; String varType; JsonArrayBuilder value = Json.createArrayBuilder();
+JsonArray tempValue; Integer vID; Integer bID; Token t; Token var; JsonObjectBuilder tempJB; Integer type;
+Token dt;String typeString; Token sc;JsonObjectBuilder lhs = Json.createObjectBuilder();
+JsonObjectBuilder rhs = Json.createObjectBuilder();JsonArrayBuilder temp = Json.createArrayBuilder();}
+{
+ <StartSQBracket>
+ {tempJB = Json.createObjectBuilder();}
+ LISTEXPRESSION(tempJB, block){JsonObject tempObj = tempJB.build();
+size = tempObj.getInt("size"); tempValue = tempObj.getJsonArray("value"); value.add(tempValue);
+if(tempObj.getString("elementtype")!="Integer"){throw new IllegalArgumentException();}
+if (tempObj.getString("hasValue")=="false"){hasValue="false";}}
+ {rowSize= rowSize+1;}
+ (<COMMA>
+  {tempJB = Json.createObjectBuilder();}
+ LISTEXPRESSION(tempJB, block){tempObj = tempJB.build();size2 = tempObj.getInt("size");
+if(size2!=size){throw new IllegalArgumentException();}
+if(tempObj.getString("elementtype")!="Integer"){throw new IllegalArgumentException();}
+tempValue = tempObj.getJsonArray("value"); value.add(tempValue);
+if (tempObj.getString("hasValue")=="false"){hasValue="false";} }
+ {rowSize = rowSize+1;}
+ )*
+ <EndSQBracket>
+ {JsonArray matValue = value.build();
+typeString = "Matrix"; lhs.add("varName", name).add("varID", variableID).add("varType", typeString);rhs.add("value",matValue);lhs.add("rowSize", rowSize); lhs.add("colSize", size);}
+{
+l.add("LHS", lhs.build());
+l.add("RHS", rhs.build());
+     if (hasValue.equals("true")){
+     double[][] valueList = ParserUtil.jsonArrayToMatrix(matValue);
+      vtEntry = new MatrixTableEntry(name, valueList, block);}
+     else{ vtEntry = new MatrixTableEntry(name,rowSize, size, block);}
+ vtable.insertEntry(variableID, vtEntry);
+  variableID = variableID+1;
+  l.add( "blockType", "matrixAssign");
+return l;}
+}
+
+
+// Inside LITERALASSIGNMENT
+JsonObjectBuilder LITERALASSIGNMENT(JsonObjectBuilder l, String name, Integer... block) : {Object value = null; VariableTableEntry vtEntry; Integer vID; Integer bID; Token t;Token var; JsonObjectBuilder tempJB = Json.createObjectBuilder(); Token idx1 = new Token(); Token idx2 = new Token();Integer type; Token dt;String typeString; Token sc;JsonObjectBuilder lhs = Json.createObjectBuilder();JsonObjectBuilder rhs = Json.createObjectBuilder();JsonArrayBuilder temp = Json.createArrayBuilder();}
+{ {lhs.add("varName", name);}
+ (
+ LOOKAHEAD(5)(t=<DIGITS>{l.add("blockType", "ConstantAssign");typeString = "Integer"; lhs.add("varType", typeString);rhs.add("varValue", t.image);value = Integer.parseInt(t.image);vtEntry  = new LiteralTableEntry(name, DataTypeEnum.valueOf("Integer").ordinal(),value,  block);})
+ |LOOKAHEAD(5)(t=<QUOTED_IDENTIFIER>{l.add("blockType", "ConstantAssign");rhs.add("varValue", t.image);typeString = "String";lhs.add("varType", typeString); value = t.image.substring(1, t.image.length()-1); vtEntry  =new LiteralTableEntry(name, DataTypeEnum.valueOf("String").ordinal(),value,  block);})
+ |LOOKAHEAD(5)(t=<ALPHANUM>(<StartSQBracket>idx1=<DIGITS><EndSQBracket>(<StartSQBracket>idx2=<DIGITS><EndSQBracket>)?)? {
+ Pair<Integer, Integer> vIDbID = vtable.searchVariable(t.image, block);
+ vID = vIDbID.first; bID = vIDbID.second;
+ vtEntry = vtable.getVarTableEntryForComposite(vID, name, idx1.image,idx2.image, block);
+ typeString = DataTypeEnum.values()[vtEntry.getType()].name();
+ value = vtEntry.getValue();
+ if (!(value==null)){
+ l.add("blockType", "ConstantAssign");
+    if(typeString == "String"){
+        lhs.add("value", (String) value);}
+    else if (typeString == "Integer"){
+        lhs.add("value", (Integer) value);
+    }
+ }
+ else {l.add("blockType", "varAssign");}
+ JsonObjectBuilder rhsObj = Json.createObjectBuilder().add("varName", t.image).add("varID", vID);
+ if (idx1.image != null) {rhs.add("rowIndex", Integer.parseInt(idx1.image));}
+  if (idx2.image != null) {rhs.add("colIndex", Integer.parseInt(idx2.image));}
+ lhs.add("varType",typeString);rhs.add("varName", t.image).add("varID", vID);
+ if (bID != -1) {rhs.add("localVar", "true").add("blockID", bID);}
+ })
+ )
+ {
+    if (block.length == 0) {
+   vtable.insertEntry(variableID, vtEntry);
+   lhs.add("varID", variableID);
+    variableID =variableID+1;
+    }
+   l.add("LHS", lhs.build());
+   l.add("RHS", rhs.build());
+   return l;}
+}
+
+JsonObjectBuilder MATHASSIGNMENT(JsonObjectBuilder l, String name, Integer... block):{ JsonObjectBuilder lhs = Json.createObjectBuilder();JsonObjectBuilder rhs = Json.createObjectBuilder(); String typeString;}
+{{JsonObjectBuilder tempJB = Json.createObjectBuilder();}
+MATHEXPRESSION(tempJB, block)
+{lhs.add("varName", name); JsonObject tempObj = tempJB.build();  typeString=tempObj.getString("type");lhs.add("varType",typeString);
+rhs.add("vLeft", tempObj.getJsonObject("vLeft")).add("operation", tempObj.getString("operation")).add("vRight", tempObj.getJsonObject("vRight"));
+   l.add("LHS", lhs.build());
+   l.add("RHS", rhs.build());
+   if (block.length == 0){
+       lhs.add("varID", variableID);
+   VariableTableEntry vte =  VariableTable.createVariableEntry(name,typeString, block);
+vtable.insertEntry(variableID, vte);
+variableID =variableID+1;}
+}
+{return l;}
+}
+
+
+
+JsonObjectBuilder MATHEXPRESSION(JsonObjectBuilder l, Integer... block):{JsonObjectBuilder vLeft = Json.createObjectBuilder();JsonObjectBuilder vRight = Json.createObjectBuilder();Token t;Token op;String t1; String t2;String operation; Pair<Integer, Integer> vIDbID; Integer bID; Integer vID; Integer type; String typeString;}
+{
+
+((t=<DIGITS>{t1 = "Integer";vLeft.add("value", t.image);})|(t=<ALPHANUM>{vIDbID = vtable.searchVariable(t.image, block);vID = vIDbID.first; vLeft.add("varID", vID); bID = vIDbID.second;
+if(bID != -1) {
+ vLeft.add("localVar", "true").add("blockID", bID);
+}
+vLeft.add("varName", t.image);t1 = vtable.getVarType(vID);})
+|(t = <QUOTED_IDENTIFIER>{t1 = "String";vLeft.add("value", t.image.substring(1, t.image.length()-1));})
+|(LISTEXPRESSION(vLeft){t1 = "List";}))
+{vLeft.add("type", t1);}
+((<PLUS>{operation ="+";})|<MINUS>{operation ="-";})
+((t=<DIGITS>{t2 = "Integer";vRight.add("value", t.image);})|(t=<ALPHANUM>{vIDbID = vtable.searchVariable(t.image, block); vID = vIDbID.first; vRight.add("varID", vID); bID = vIDbID.second;
+vID = vIDbID.first; vLeft.add("varID", vID); bID = vIDbID.second;
+if(bID != -1) {
+ vRight.add("localVar", "true").add("blockID", bID);
+}
+vRight.add("varName", t.image);  t2= vtable.getVarType(vID);})
+|(t = <QUOTED_IDENTIFIER>{t2 = "String";vRight.add("value", t.image.substring(1, t.image.length()-1));}
+|(LISTEXPRESSION(vRight){t2 = "List";})))
+{vRight.add("type", t2);}
+{
+typeString = ParserUtil.mathOperationOutputType(t1, t2, operation);
+l.add("vLeft", vLeft.build());
+l.add("operation", operation);
+l.add("vRight", vRight.build());
+l.add("type",typeString);
+//VariableTableEntry vte = new VariableTableEntry(name, typeString, block);
+//lhs.add("type", typeString);
+//l.add("LHS", lhs);
+//l.add("RHS", rhs);
+return l;}}
+
+
+void TUPLEASSIGNMENT(JsonObjectBuilder l, String name, Integer... block) :
+{VariableTableEntry vtEntry; Integer vID; Integer bID; Token t; Token var;
+JsonObjectBuilder tempJB = Json.createObjectBuilder();  Integer type;
+JsonObjectBuilder lhs = Json.createObjectBuilder();JsonObjectBuilder rhs = Json.createObjectBuilder();JsonArrayBuilder temp = Json.createArrayBuilder();
+ List<String> elementTypes = new ArrayList<String>();
+JsonObject tempObj;  boolean hasValue = true; String typeString;
+}
+{
+{lhs.add("varName", name).add("varType", "Tuple");
+    if (block.length==1){
+    lhs.add("blockID", block[0]);
+    }
+    }
+    <TUPLE> <FBRACKETSTART> <StartSQBracket>
+        tempObj = ListElement(block)
+    {int size = 1; typeString = tempObj.getString("typeString");
+    elementTypes.add(typeString);
+    if (tempObj.getString("hasValue").equals("true")) {
+        if (typeString.equals("Integer")){temp.add(tempObj.getInt("value"));}
+        else if (typeString.equals("String")){temp.add(tempObj.getString("value"));}
+    }
+    else {hasValue = false; temp.add(tempObj.getJsonObject("value"));}
+    }
+    (<COMMA>
+    tempObj = ListElement(block)
+    { //ParserUtil.typeCompatible(typeString, typeString2);
+    typeString = tempObj.getString("typeString");
+    elementTypes.add(typeString);
+     if (tempObj.getString("hasValue").equals("true")) {
+             if (typeString.equals("Integer")){temp.add(tempObj.getInt("value"));}
+             else if (typeString.equals("String")){temp.add(tempObj.getString("value"));}
+     }
+     else {hasValue = false; temp.add(tempObj.getJsonObject("value"));}
+    size = size + 1;})*
+
+
+//       ((t = <DIGITS> {int size = 1;temp.add(t.image);})(<COMMA> t = <DIGITS> {size = size +1;temp.add(t.image);})* { l.add("elementtype", "int");l.add("size", size);l.add("value", temp.build());})
+//                                                 | ((t = <QUOTED_IDENTIFIER> {int size = 1;temp.add(t.image);})(<COMMA> t = <QUOTED_IDENTIFIER> {size = size +1;temp.add(t.image);})* {l.add("elementtype", "string");l.add("size", size);l.add("value", temp.build());})
+
+     <EndSQBracket>
+     <FBRACKETEND>
+
+ {
+JsonArray value = temp.build();
+rhs.add("value", value);
+if (block.length == 0) {
+lhs.add("varID", variableID);
+ if (hasValue){
+ List<Object> valueList = ParserUtil.jsonArrayToListWithDifferentEleType(value, elementTypes);
+  vtEntry = new TupleTableEntry(name,elementTypes, size, valueList, block);}
+ else{ vtEntry = new TupleTableEntry(name, elementTypes, size, block);}
+ vtable.insertEntry(variableID, vtEntry);
+ variableID =variableID+1;}
+lhs.add("elementTypes", JsonUtil.arrayToJsonArray(elementTypes)).add("size", size);
+l.add("LHS", lhs.build()).add("RHS", rhs.build());
+
+}
+
+}
+
+void TUPLEEXTRACTION(JsonObjectBuilder jobject, String name, Integer... block) : {Token var; Token idx;
+JsonObjectBuilder tupleVar = Json.createObjectBuilder(); String vType; List<String> types;
+JsonObjectBuilder lhs = Json.createObjectBuilder(); JsonObjectBuilder rhs = Json.createObjectBuilder(); Integer index; Integer vID; Integer bID;
+Pair<Integer, Integer> vIDbID;
+}
+{
+ var = <ALPHANUM> {vIDbID = vtable.searchVariable(var.image, block);
+ vID = vIDbID.first; bID = vIDbID.second;
+tupleVar.add("varName", var.image).add("varID", vID).add("varType", "tuple");
+if (bID != -1) {
+tupleVar.add("localVar", "true").add("blockID", bID);
+}
+TupleTableEntry xt = (TupleTableEntry) vtable.getVariableProperties(vID);
+types = xt.getTypes();
+}
+ <DOT> <PLACEHOLDER> idx = <DIGITS>{index =Integer.parseInt(idx.image); vType = types.get(index);}
+
+{
+lhs.add("varName", name).add("varType", vType);
+rhs.add("tupleVariable", tupleVar.build()).add("index", index);
+jobject.add("LHS", lhs.build()).add("RHS", rhs.build());
+if (block.length == 0) {
+VariableTableEntry vtEntry = vtable.createVariableEntry(name,vType);
+vtable.insertEntry(variableID, vtEntry);
+lhs.add("varID", variableID);
+variableID += 1;}
+}
+}
+
+JsonObjectBuilder LISTASSIGNMENT(JsonObjectBuilder l, String name, Integer... block) :
+{VariableTableEntry vtEntry; Integer vID; Integer bID; Token t; Token var; JsonObjectBuilder tempJB = Json.createObjectBuilder(); String typeString; Integer type; Token dt; Token sc;JsonObjectBuilder lhs = Json.createObjectBuilder();JsonObjectBuilder rhs = Json.createObjectBuilder();JsonArrayBuilder temp = Json.createArrayBuilder();}
+{   {lhs.add("varName", name);
+
+    }
+    (
+//    LOOKAHEAD(10) (CONCATENATE(rhs, block){lhs.add("type", "listConcatenate");
+//                      ListTableEntry vtEntry = new ListTableEntry(name, DataTypeEnum.List.ordinal(), block);
+//                      vtable.insertEntry(variableID, vtEntry);})|
+
+//LOOKAHEAD(4)(<StartSQBracket>
+//                  (((t = <DIGITS> {int size = 1;temp.add(t.image);})(<COMMA> t = <DIGITS> {size = size +1;temp.add(t.image);})*
+//                  {lhs.add("type", "list"); lhs.add("elementtype", "int");lhs.add("size", size);rhs.add("value", temp.build());
+//                  ListTableEntry vtEntry = new ListTableEntry(name, DataTypeEnum.List.ordinal(),DataTypeEnum.Integer.ordinal(), size, block);
+//                  vtable.insertEntry(variableID, vtEntry);
+//                  })
+//                   | ((t = <QUOTED_IDENTIFIER> {int size = 1;temp.add(t.image);})(<COMMA> t = <QUOTED_IDENTIFIER> {size = size +1;temp.add(t.image);})*
+//                                                            {lhs.add("type", "list"); lhs.add("elementtype", "string");lhs.add("size", size);rhs.add("value", temp.build());
+//                                                            ListTableEntry vtEntry = new ListTableEntry(name, DataTypeEnum.List.ordinal(),DataTypeEnum.String.ordinal(), size, block);
+//                                                            vtable.insertEntry(variableID, vtEntry);
+//                                                            }))
+//                   <EndSQBracket>)
+    //|(t=<ALPHANUM>{vID = vtable.searchVariable(t.image, block); rhs.add("name", t.image); rhs.add("varID", vID);lhs.add("type", "variableAssign");
+     //vtable.insertEntry(variableID, vtable.getVariableProperties(vID)); })
+
+     LOOKAHEAD(5) LISTEXPRESSION(tempJB) {
+JsonObject tempObj = tempJB.build(); Integer size = tempObj.getInt("size"); lhs.add("size", size);  typeString = tempObj.getString("elementtype");lhs.add("elementType", typeString);
+     JsonArray value = tempObj.getJsonArray("value");
+     rhs.add("value", value);
+     l.add("blockType", "ConstantAssign");
+     if (block.length == 0) {
+         lhs.add("varID", variableID);
+     if (tempObj.getString("hasValue").equals("true")){
+     ArrayList<Object> valueList = ParserUtil.jsonArrayToList(value, typeString);
+      vtEntry = new ListTableEntry(name,DataTypeEnum.valueOf(typeString).ordinal(), size, valueList, block);}
+     else{ vtEntry = new ListTableEntry(name,DataTypeEnum.valueOf(typeString).ordinal(), size, block);}
+     vtable.insertEntry(variableID, vtEntry);
+     variableID =variableID+1;
+     }}
+     // add metadata to listtableentry
+     //todo: change matrix to nestedlist and add another matrix expression which should be Matrix(xxx)
+//     |LOOKAHEAD(10) NESTEDEXPRESSION(tempJB) {}
+   |(<StartSQBracket>  <LOAD> <FROM> t = <QUOTED_IDENTIFIER> { rhs.add("data-path", t.image);}<AS>
+                                                      (
+                                                          ( dt = <LIST> {typeString = "List";})
+                                                          //| ( dt = <GRAPHQL>)
+                                                          |( dt = <STRING> {typeString = "String";})
+                                                          //|( dt = <XML>)
+                                                          //|( dt = <RELATION>)
+                                                      )
+                                                      {lhs.add("elementType", typeString);}
+
+                        <EndSQBracket>)
+                        {
+                            if (block.length == 0) {
+                                lhs.add("varID", variableID);
+                                vtEntry = new ListTableEntry(name, block); ((ListTableEntry) vtEntry).setElementType(DataTypeEnum.valueOf(typeString).ordinal());
+                              vtable.insertEntry(variableID, vtEntry); l.add("blockType", "loadFile");
+                            variableID =variableID+1;
+                            }
+                            }
+                        )
+  {
+  lhs.add("varType", "List");
+  l.add("LHS", lhs.build());l.add("RHS", rhs.build());
+
+    return l;
+   }
+
+}
+
+JsonObjectBuilder STRINGASSIGNMENT(JsonObjectBuilder l) : {Token t; Token var; JsonObjectBuilder tempJB = Json.createObjectBuilder(); Token x;}
+{
+  {return l;}
+}
+
+
+JsonObject ListElement(Integer... block):{Integer vID; Object value;  JsonObjectBuilder l = Json.createObjectBuilder(); Token t;String typeString;
+String hasValue = "true"; Pair<Integer, Integer> vIDbID; Integer bID;}
+{
+((t = <DIGITS>{typeString = "Integer";l.add("value", Integer.parseInt(t.image));})
+        |(t = <QUOTED_IDENTIFIER>{typeString="String";l.add("value", t.image.substring(1, t.image.length()-1));})
+        |(t=<ALPHANUM>{ vIDbID = vtable.searchVariable(t.image, block); vID = vIDbID.first; bID = vIDbID.second;
+        typeString=vtable.getVarType(vID);
+        value = vtable.getVariableProperties(vID).getValue();
+                    if (value == null || !(typeString.equals("String")||typeString.equals("Integer"))){
+                        hasValue = "false";
+                        JsonObjectBuilder tempJB = Json.createObjectBuilder().add("varID",vID).add("type", typeString);
+                        if (bID != -1) {
+                          tempJB.add("localVar", "true").add("blockID", bID);
+                        }
+                        l.add("value", tempJB.build());
+                    }
+                    else if (typeString.equals("String")){
+                        l.add("value", (String) value);
+                    }
+                    else if (typeString.equals("Integer"))
+                       {l.add("value", (Integer) value);}
+
+        })
+    )
+    {l.add("typeString", typeString);
+    l.add("hasValue", hasValue);
+     return l.build();}
+}
+
+JsonObjectBuilder LISTEXPRESSION(JsonObjectBuilder l, Integer... block) : {JsonObject tempObj;  String hasValue = "true";
+Integer vID; Integer type; String typeString; String typeString2; Token t;  Token x;JsonArrayBuilder temp = Json.createArrayBuilder();}
+{
+    <StartSQBracket>
+        tempObj = ListElement(block)
+    {int size = 1; typeString = tempObj.getString("typeString");
+    if (tempObj.getString("hasValue").equals("true")) {
+        if (typeString.equals("Integer")){temp.add(tempObj.getInt("value"));}
+        else if (typeString.equals("String")){temp.add(tempObj.getString("value"));}
+    }
+    else {hasValue = "false"; temp.add(tempObj.getJsonObject("value"));}
+    }
+    (<COMMA>
+    tempObj = ListElement(block)
+    { //ParserUtil.typeCompatible(typeString, typeString2);
+    typeString2 = tempObj.getString("typeString");
+    if (!typeString.equals(typeString2)){
+    throw new IllegalArgumentException(typeString+" is not compatible with "+typeString2);
+    }
+     if (tempObj.getString("hasValue").equals("true")) {
+             if (typeString.equals("Integer")){temp.add(tempObj.getInt("value"));}
+             else if (typeString.equals("String")){temp.add(tempObj.getString("value"));}
+     }
+     else {hasValue = "false"; temp.add(tempObj.getJsonObject("value"));}
+    size = size + 1;})*
+
+
+//       ((t = <DIGITS> {int size = 1;temp.add(t.image);})(<COMMA> t = <DIGITS> {size = size +1;temp.add(t.image);})* { l.add("elementtype", "int");l.add("size", size);l.add("value", temp.build());})
+//                                                 | ((t = <QUOTED_IDENTIFIER> {int size = 1;temp.add(t.image);})(<COMMA> t = <QUOTED_IDENTIFIER> {size = size +1;temp.add(t.image);})* {l.add("elementtype", "string");l.add("size", size);l.add("value", temp.build());})
+
+     <EndSQBracket>
+{
+l.add("size", size);
+l.add("elementtype", typeString);
+l.add("value", temp.build());
+l.add("hasValue", hasValue);
+return l;}
+}
+
+//JsonObjectBuilder CONCATENATE(JsonObjectBuilder l, Integer... block) : {Token t; Token col; Token x;JsonObjectBuilder tempJBLeft = Json.createObjectBuilder();JsonObjectBuilder tempJBRight = Json.createObjectBuilder();Integer vID;}
+//{
+//
+// (LISTEXPRESSION(tempJBLeft)|(col=<ALPHANUM>{vID = vtable.searchVariable(col.image, block);
+// ListTableEntry xt = (ListTableEntry) vtable.getVariableProperties(vID);
+// int type = xt.getElementType();
+// String elementType=DataTypeEnum.values()[type].name();tempJBLeft.add("name", col.image);tempJBLeft.add("varID", vID);tempJBLeft.add("elementtype", elementType);}))
+// <PLUS>(LOOKAHEAD(10) CONCATENATE(tempJBRight)|LISTEXPRESSION(tempJBRight)|(col=<ALPHANUM>{vID = vtable.searchVariable(col.image, block); int type = vtable.getVariableProperties(vID).getType(); String elementType=DataTypeEnum.values()[type].name();
+// tempJBRight.add("name", col.image);tempJBLeft.add("varID", vID);tempJBRight.add("elementtype", elementType);}))
+//
+//  {l.add("vLeft", tempJBLeft.build());
+//  l.add("vRight", tempJBRight.build());
+//  return l;}
+//}
+
+
+String exprsforLambda(String vType, Integer eleType): {
+String lambdaType;
+ }
+{(LOOKAHEAD(3) <PLACEHOLDER><COLON><ROW> {if (!vType.equals("Matrix") && !vType.equals("TextMatrix")) {throw new IllegalArgumentException(vType +" can't be traversed by Row"); } lambdaType = "MatrixRow";}
+ |LOOKAHEAD(3) <PLACEHOLDER><COLON><COLUMN> {if (!vType.equals("Matrix") && !vType.equals("TextMatrix")) {throw new IllegalArgumentException(vType +" can't be traversed by Column");} lambdaType = "MatrixColumn";}
+ |<PLACEHOLDER> {
+     if (!vType.equals("List"))
+         {throw new IllegalArgumentException(vType +" can't be traversed"); }
+//     ListTableEntry vte = (ListTableEntry) vtable.getVariableProperties(vID);
+//     Integer eleType = vte.getElementType();
+     if (eleType == 0) {throw new IllegalArgumentException("List element type should be specified");}
+     lambdaType = DataTypeEnum.values()[eleType].name();
+ })
+{return lambdaType;}}
+
+
+void exprsforLambdaDetail(JsonObjectBuilder l, String vType, Integer eleType): {
+}
+{(LOOKAHEAD(3) <PLACEHOLDER><COLON> <ROW> {if (!vType.equals("Matrix") && !vType.equals("TextMatrix")) {throw new IllegalArgumentException(vType +" can't be traversed by Row"); }
+l.add("traversetype", "Matrix").add("elementtype", "MatrixRow");}
+ |LOOKAHEAD(3) <PLACEHOLDER><COLON> <COLUMN> {if (!vType.equals("Matrix") && !vType.equals("TextMatrix")) {throw new IllegalArgumentException(vType +" can't be traversed by Column");}
+l.add("traversetype","Matrix").add("elementtype", "MatrixColumn");}
+ |<PLACEHOLDER> {
+     if (!vType.equals("List"))
+         {throw new IllegalArgumentException(vType +" can't be traversed"); }
+     l.add("traversetype", "List");
+//     ListTableEntry vte = (ListTableEntry) vtable.getVariableProperties(vID);
+//     Integer eleType = vte.getElementType();
+     if (eleType == 0) {throw new IllegalArgumentException("List element type should be specified");}
+     l.add("elementtype", DataTypeEnum.values()[eleType].name());
+ }
+ )
+ {l.add("blockType", "lambdaVar");
+}
+}
+
+//JsonArrayBuilder RHSforLambda(): {
+//    JsonObjectBuilder l = Json.createObjectBuilder();
+//    JsonObjectBuilder jObj = Json.createObjectBuilder();
+//    List<String> names = Arrays.asList("~");
+//}
+//{
+//LOOKAHEAD(10) LITERALASSIGNMENT(l, "~") {jObj.add("type", l.getJsonObject("lhs").getString("varType"));} //add type and detail
+//|AWSMFunction(l, names)
+//{
+//jObj.add("detail", l.build());
+//return jObj;}}
+
+// parameters for a lambda function, can be integer, variable name which should be searched in block, or a lambda expression
+List<FuncInput> GetLambdaFunction(String vType, Integer pID, Integer eleType, Integer thisBlock, boolean[] tms, Integer... block) : {
+ boolean hasLambda; Token t; Token x; FuncInput f; List<FuncInput> result = new ArrayList<FuncInput>();
+ String lambdaVarType;
+ }
+{
+<FBRACKETSTART>
+((
+{f = new FuncInput(); if (block.length == 1) {f.block = block[0];}}
+ (LOOKAHEAD(3) x = <ALPHANUM> <EQAL> {f.key = x.image;})?
+(LOOKAHEAD(3)(t = <ALPHANUM>{f.variable = true; f.name = t.image;})
+|(t = <FIELDNAME>{f.variable = true; f.name = t.image;})
+|(t = <DIGITS>{f.value = Integer.parseInt(t.image); f.type = "Integer";})
+|(t = <QUOTED_IDENTIFIER>{f.value = t.image.substring(1, t.image.length()-1); f.type = "String";})
+|(lambdaVarType = exprsforLambda(vType, eleType) {
+f.variable = true; f.setParentVarID(pID); f.type = lambdaVarType; f.block = thisBlock;
+if (lambdaVarType.equals("MatrixColumn")) {
+    f.name = "_:Column";
+    tms[0] = true;
+}
+else if (lambdaVarType.equals("MatrixRow")) {
+    f.name = "_:Row";
+        tms[0] = true;
+        tms[1] = true;
+}
+else {f.name = "_";}
+})
+)
+{result.add(f);}
+)
+({f = new FuncInput(); if (block.length == 1) {f.block = block[0];}}
+ <COMMA>
+ (LOOKAHEAD(3) x = <ALPHANUM> <EQAL> {f.key = x.image;})?
+(LOOKAHEAD(3) t = <ALPHANUM>{f.variable = true; f.name = t.image;}
+|(t = <FIELDNAME>{f.variable = true; f.name = t.image;})
+|(t = <DIGITS>{f.value = Integer.parseInt(t.image); f.type = "Integer";})
+|(t=<QUOTED_IDENTIFIER>{f.value = t.image.substring(1, t.image.length()-1); f.type = "String";})
+|(lambdaVarType = exprsforLambda(vType, eleType) {
+f.variable = true; f.setParentVarID(pID); f.type = lambdaVarType; f.block = thisBlock; if (lambdaVarType.equals("MatrixColumn")) {
+                                                                                           f.name = "_:Column";    tms[0] = true;
+                                                                                       }
+                                                                                       else if (lambdaVarType.equals("MatrixRow")) {
+                                                                                           f.name = "_:Row";          tms[0] = true;
+                                                                                                                      tms[1] = true;
+                                                                                       }
+                                                                                       else {f.name = "_";}
+})
+)
+ {result.add(f);}
+ )*)?
+//(
+//<COMMA>
+//{f = new FuncInput(); if (block.length == 1) {f.block = block[0];}}
+//(x = <ALPHANUM> {f.key = x.image;}) <EQAL> (LOOKAHEAD(3)(t = <ALPHANUM>{f.variable = true; f.name = t.image;})
+//                                           | (t = <FIELDNAME>{f.variable = true; f.name = t.image;})
+//                                           |(t = <DIGITS>{f.value = t.image; f.type = "Integer";})
+//                                           |(t=<QUOTED_IDENTIFIER>{f.value = t.image; f.type = "String";}))
+//{result.add(f);}
+//)*
+<FBRACKETEND>
+{return result;}
+}
+
+
+
+//todo: add check for matrix column and row
+// Function sub-expression it can be fucName(Parameters), p1.fucName(other parameters), lambdaExpression.fucName(others)
+// a lambda function which is used insdei where expression can only generate one output, so the names are [~]
+void LambdaFunctionExprssion(JsonObjectBuilder l, Integer pID,  String vType, Integer eleType, Integer thisBlock, boolean[] TMs, Integer... block):
+{Token v; Token t;
+String[] v1;
+String funName;
+List<FuncInput> parameter = new ArrayList<FuncInput>();
+List<FuncInput> tempParameter;
+List<String> names = Arrays.asList("~");
+JsonArrayBuilder parameterJson = Json.createArrayBuilder();
+JsonArrayBuilder outputVariable = Json.createArrayBuilder();
+JsonObjectBuilder temp = Json.createObjectBuilder();
+JsonObjectBuilder lhs = Json.createObjectBuilder();
+JsonObjectBuilder rhs = Json.createObjectBuilder();
+JsonObjectBuilder detail = Json.createObjectBuilder();
+JsonObject tempObj = Json.createObjectBuilder().build();
+String lambdaVarType;
+
+}
+{
+    (
+    LOOKAHEAD(5)(t = <ALPHANUM>{funName = t.image; l.add("funcName", t.image);})
+    |(v =<FIELDNAME> {v1 = v.image.split("\\.");  FuncInput firstPara = new FuncInput(); firstPara.name = v1[0];
+    firstPara.variable = true; if(block.length == 1){firstPara.block = block[0];}
+    parameter.add(firstPara);funName = v1[1];l.add("funcName", funName);})
+    |(lambdaVarType = exprsforLambda(vType, eleType) <DOT> v = <ALPHANUM> {
+FuncInput firstPara = new FuncInput();firstPara.block = thisBlock;
+firstPara.setParentVarID(pID); firstPara.name = "_";
+//firstPara.setIteratedVarID(vID);
+firstPara.type = lambdaVarType;
+parameter.add(firstPara);funName = v.image;l.add("funcName", funName);})
+    )
+    tempParameter = GetLambdaFunction(vType, pID, eleType, thisBlock, TMs, block)
+{   //JsonObject funcProp = ParserUtil.validateFunction(t.image); String output = funcProp.getString("output");
+    //List<String> types = Arrays.asList(output.split("#"));
+
+    parameter.addAll(tempParameter);
+    Pair<List<FuncInput>, List<AwsmDataType>> allInfo = FunctionUtil.validateFunction(funName, parameter, names, vtable);
+    List<FuncInput> input = allInfo.first;
+    List<AwsmDataType> output = allInfo.second;
+    // add input to the rhs of output json
+    for (FuncInput f : input) {
+        parameterJson.add(f.toJsonObject());
+    }
+    for (AwsmDataType d : output) {
+        tempObj = d.toJsonObject(-1, block);
+        outputVariable.add(tempObj);
+    }
+    lhs.add("variables",outputVariable.build());
+    rhs.add("parameters",parameterJson.build());
+    l.add("type", tempObj.getString("varType")).add("LHS", lhs.build()).add("RHS", rhs.build()).add("blockType", "FuncCall");
+  }
+}
+
+
+// add a util function where if a variable is in optional map and if so search the map otherwise search the vtable
+// return a JsonObjectBuilder or not depends on
+
+
+// predicates expression used in whereexpression
+// it can be _(:row or not) or a lambda function before or after an operator
+// any parameter here expect _ can be a local variable and should be searched in block first
+// todo: for any filter expression, add _ to table entry and then the function will search it, and _ alone will also search it
+// todo: add a list of blockIDs if there are multiple layers blockes and should have a search order
+JsonObjectBuilder Expression( JsonObjectBuilder ope,  Integer pID, String vType, Integer elementType, Integer thisBlock, Integer... block) :
+{
+    Token t; Token o1; Token opn; Token o2;
+    JsonObjectBuilder l1 = Json.createObjectBuilder();
+    JsonObject l1Obj;
+    JsonObject l2Obj;
+    JsonObjectBuilder l2 = Json.createObjectBuilder();
+    String type1 = null;
+    String type2 = null;
+    boolean hasRightExpres = false;
+    boolean[] TMs = new boolean[2];
+    // the first boolean denotes if this is a TM, the second one denotes if this iterate through rows
+    TMs[0] = false;
+    TMs[1] = false;
+
+//    boolean isLeftLambda = false;
+//    boolean isRightLambda = false;
+    Integer vID; Integer bID; Pair<Integer, Integer> vIDbID;
+}
+{
+// needs to search the varID of "_" when using it
+(
+LOOKAHEAD(10) LambdaFunctionExprssion(l1, pID, vType, elementType, thisBlock, TMs, block) {l1Obj = l1.build(); type1 = l1Obj.getString("type");
+//isLeftLambda = (l1Obj.getString("blockID").equals("true"));
+}
+|LOOKAHEAD(10) exprsforLambdaDetail(l1, vType, elementType) {
+// add the local varID for "_", if it is matrix column or row, then need to search "_:Column" or "_:Row"
+l1.add("localVariable", "true").add("parentID", pID).add("blockID", thisBlock);
+l1Obj = l1.build();type1 = l1Obj.getString("elementtype");
+if (type1.equals("MatrixColumn")) {
+    l1.add("varID", vtable.searchVariableInBlock("_:Column", thisBlock));
+    TMs[0] = true;
+}
+else if (type1.equals("MatrixRow")) {
+l1.add("varID", vtable.searchVariableInBlock("_:Row", thisBlock));
+TMs[0] = true; TMs[1] = true;
+}
+else {
+l1.add("varID", vtable.searchVariableInBlock("_", thisBlock));
+}
+}
+|t = <ALPHANUM> {
+//l1 = searchWithLocalVariable(t.image, vtable, localVar);
+vIDbID = vtable.searchVariable(t.image, block); vID = vIDbID.first; bID = vIDbID.second; type1 = vtable.getVarType(vID);
+l1.add("blockType", "varAssign").add("varName", t.image).add("varID", vID).add("varType", type1);
+if (bID != -1) {
+    l1.add("localVar", "true").add("blockID", bID);
+}
+l1Obj = l1.build();
+}
+|t = <DOUBLES> {l1.add("blockType", "ConstantAssign").add("type", "Double").add("value", t.image); l1Obj = l1.build(); type1 = "Double";}
+|t = <DIGITS> {l1.add("blockType", "ConstantAssign").add("type", "Integer").add("value", t.image); l1Obj = l1.build(); type1 = "Integer";}
+|t = <QUOTED_IDENTIFIER> {l1.add("blockType", "ConstantAssign").add("type", "String").add("value", t.image.substring(1, t.image.length()-1)); l1Obj = l1.build(); type1 = "String";}
+)
+{ope.add("leftOperatee", l1Obj);}
+(
+((opn = <GREATERTHANEQUALS>)|(opn = <MINORTHANEQUALS> )|(opn = <GREATER>)|(opn = <LESS>)|(opn = <EQAL>))
+(LOOKAHEAD(10) LambdaFunctionExprssion(l2, pID,  vType, elementType, thisBlock, TMs,  block) {l2Obj = l2.build(); type2 = l2Obj.getString("type");
+//isRightLambda = (l2Obj.getString("hasLambda").equals("true"));
+}
+|LOOKAHEAD(10) exprsforLambdaDetail(l2, vType, elementType) {
+l2.add("localVariable", "true").add("parentID", pID).add("blockID", thisBlock); l2Obj = l2.build(); type2 = l2Obj.getString("elementtype");
+if (type2.equals("MatrixColumn")) {
+    l2.add("varID", vtable.searchVariableInBlock("_:Column", thisBlock));TMs[0] = true;
+}
+else if (type2.equals("MatrixRow")) {
+l2.add("varID", vtable.searchVariableInBlock("_:Row", thisBlock));TMs[0] = true; TMs[1] = true;
+}
+else {
+l2.add("varID", vtable.searchVariableInBlock("_", thisBlock));
+}
+}
+|t = <ALPHANUM> {
+//l2 = seachWithLocalVariable(t.image, vtable, localVar);
+vIDbID = vtable.searchVariable(t.image, block); vID = vIDbID.first; bID = vIDbID.second;
+type2 = vtable.getVarType(vID); l2.add("blockType", "varAssign").add("varName", t.image).add("varID", vID).add("varType", type2);
+if (bID != -1) {
+    l2.add("localVar", "true").add("blockID", bID);
+}
+l2Obj = l2.build();}
+|t = <DIGITS> {l2.add("blockType", "ConstantAssign").add("type", "Integer").add("value", Integer.parseInt(t.image));l2Obj = l2.build(); type2 = "Integer";}
+|t = <DOUBLES> {l2.add("blockType", "ConstantAssign").add("type", "Double").add("value", t.image); l2Obj = l2.build(); type2 = "Double";}
+|t = <QUOTED_IDENTIFIER> {l2.add("blockType", "ConstantAssign").add("type", "String").add("value", t.image.substring(1, t.image.length()-1));l2Obj = l2.build();type2 = "String";}
+)
+{ope.add("operator", opn.image); hasRightExpres = true; ope.add("blockType", "BiOperation").add("rightOperatee", l2Obj); }
+)?
+
+{
+//if ((!isLeftLambda) && !(isRightLambda)) {
+//  throw new IllegalArgumentException("the predicate returns constant");
+//}
+
+if ((!hasRightExpres) && (!type1.equals("Boolean"))) {
+    throw new IllegalArgumentException("need to pass a boolean predicate");
+}
+//add some processing for LHS and RHS and verification
+else if (!type1.equals(type2)) {
+ throw new IllegalArgumentException("the types before and after the operator should match");
+}
+if (TMs[0]) {
+    if (TMs[1]) {
+        ope.add("iterateType", "MatrixRow");
+    }
+    else {
+        ope.add("iterateType", "MatrixColumn");
+    }
+}
+
+return ope;}
+}
+
+
+
+
+//
+//
+//            (
+//
+//                LOOKAHEAD(3)(x = <ALPHANUM>{f1.add("vp1",x.image);} (GetFunction(l, x.image) {f1.add(x.image,l.build());})? (<EQAL> ((y = <ALPHANUM>)|(y = <DIGITS>)|(y=<FIELDNAME>))
+//                                                    {map.add(x.image, y.image); f1.add("map", map.build());})? )
+//                |(x = <DIGITS>{f1.add("digi1",x.image);})
+//                |(x = <FIELDNAME>{f1.add("vpt1",x.image);}(GetFunction(l, x.image){f1.add(x.image,l.build());})?(<EQAL> y = <ALPHANUM>{map.add(x.image, y.image); f1.add("map",map.build());})?)
+//
+//            )
+//
+//            {l1.add(f1.build());}
+//            (
+// {JsonObjectBuilder f2 = Json.createObjectBuilder();JsonObjectBuilder m2 = Json.createObjectBuilder();}
+//                  <COMMA> ( LOOKAHEAD(3)(x = <ALPHANUM>{f2.add("vp1",x.image);} (GetFunction(l, x.image) {f2.add(x.image,l.build());})? (<EQAL> ((y = <ALPHANUM>)|(y = <DIGITS>)|(y=<FIELDNAME>))
+//
+//                                                                            {m2.add(x.image, y.image); f2.add("map", m2.build());})? )
+//                            |(x = <DIGITS>{f2.add("digi1",x.image);})
+//                            |(x = <FIELDNAME>{f2.add("vpt1",x.image);}(GetFunction(l, x.image){f2.add(x.image,l.build());})?(<EQAL> y = <ALPHANUM>{m2.add(x.image, y.image); f2.add("map",m2.build());})?)
+//                            )
+//
+//              {l1.add(f2.build());})*
+
+
+
+
+
+
+
+
+

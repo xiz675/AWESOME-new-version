@@ -1,0 +1,272 @@
+
+options{
+VISITOR=true;
+MULTI=true;
+}
+
+PARSER_BEGIN(Adil)
+
+package edu.sdsc.adil;
+
+import java.io.*;
+import java.util.*;
+import edu.sdsc.awesome.adil.parser.AdilFirstPass;
+import edu.sdsc.awesome.adil.parser.ParserTable.Table;
+import javax.json.Json;
+import javax.json.JsonObjectBuilder;
+import javax.json.JsonObject;
+import javax.json.JsonArrayBuilder;
+import java.util.ArrayList;
+import java.util.List;
+
+
+
+import edu.sdsc.awesome.adil.parser.StatementOperation.CommonParserOperations;
+import static edu.sdsc.awesome.adil.parser.StatementOperation.ParserUtil.handleCypherQuery;
+
+
+public class Adil {
+
+private static Integer planID = edu.sdsc.awesome.adil.parser.StatementOperation.ParserUtil.generateUniqueID();
+
+
+
+public static void main(String[] args) {
+    Reader sr = new StringReader(args[0]);
+    Adil p = new Adil(sr);
+    try {
+      SimpleNode node = p.ADILStatement();
+     System.out.println(node.toString());
+     node.dump(">");
+
+    } catch (ParseException pe) {
+      pe.printStackTrace();
+    }
+  }
+
+
+}
+
+PARSER_END(Adil)
+
+SKIP : {
+  " "
+}
+TOKEN : {
+  <DIGITS : (["0"-"9"])+>
+
+  | < PLUS : "+" >
+  | <NOT : "!" >
+  | <SEMICOLON : ";">
+  | <COLON : ":" >
+  | < EQAL : "=" >
+  | < #GREATER : ">">
+  | < #LESS : "<" >
+  | <FBRACKETSTART : "(">
+  | <FBRACKETEND : ")">
+  | <DOT : ".">
+  | <COMMA : ",">
+  | <OPERATOR : (<GREATER>|<LESS>|(<EQAL><EQAL>)) >
+
+
+}
+
+TOKEN [IGNORE_CASE]: {
+<CREATE : "create" >
+| <DELETE : "delete" >
+| <ALTER : "alter" >
+| <LOAD : "load" >
+| <IMPORT : "import">
+| <DATAVERSE : "dataverse" >
+| <WITH : "with">
+| <WHERE : "where">
+| <AND : "and">
+|<STORE : "store">
+|<TYPE : "type">
+|<PARTITION : "partition" >
+|<BY : "by" >
+|<AS : "as" >
+
+}
+
+
+
+TOKEN [IGNORE_CASE]: {
+<ENV : "env" >
+| <IN : "in">
+| <ANNOTATE : "annotate">
+| <FILTER : "filter" >
+| <EXECUTESQLPP : "executesqlpp" >
+| <CONSTRUCTGRAPH : "constructgraph" >
+
+
+
+}
+
+TOKEN :
+{
+   < #DIGIT    : ["0"-"9"] >
+ | < #LETTER   : ["a"-"z","A"-"Z"] >
+ | < ALPHANUM : (<LETTER>|<DIGIT>)+>
+ |<FIELDNAME : (<ALPHANUM>(<DOT><ALPHANUM>)*)>
+ |< QUOTED_IDENTIFIER: "\"" (~["\n","\r","\""])+ "\"" | ("`" (~["\n","\r","`"])+ "`") | ( "[" ~["0"-"9","]"] (~["\n","\r","]"])* "]" ) >
+
+
+}
+
+SimpleNode ADILStatement()  : {} {
+ (Statement())* {return jjtThis; }
+}
+
+void Statement()  : {Token t;}
+{
+ ( LOOKAHEAD(3) CreateStatement()|LoadStatement()|DeleteStatement()| DeclareAnalysis())
+}
+
+void CreateStatement() : {Token t; }
+{
+<CREATE> (LOOKAHEAD(1) CreateDataVerse() | CreatEnvironment() ) <SEMICOLON>
+
+}
+void LoadStatement() : {Token t; }
+{
+t = <LOAD>  <DIGITS>  <SEMICOLON> {jjtThis.setImage(t.image);}
+
+}
+void DeleteStatement() : {Token t; }
+{
+t = <DELETE> <DIGITS>  <SEMICOLON> {jjtThis.setImage(t.image);}
+
+}
+
+void DeclareAnalysis() : {Token t;}
+{
+
+ t = <ALPHANUM> <COLON><EQAL> AnalysisStatement(t.image)
+
+
+}
+
+void AnalysisStatement(String name) : {Token t;}
+{
+(LOOKAHEAD(3) AnnotateWithStoreOperation(name) | FilterOperation(name)| ExecuteSQLPP(name)| ConstructGRAPH(name) )
+
+}
+
+void ExecuteSQLPP(String name) : {Token t; Token var; JsonObjectBuilder tempJB = Json.createObjectBuilder(); }
+{
+   <EXECUTESQLPP> <FBRACKETSTART> t =quetedStatement()<FBRACKETEND>
+
+   {tempJB = handleSQLPPQuery(t.image, tempJB, partitionJB, partitionFlag);}
+
+
+
+
+   {jjtThis.setImage(t.image);}
+}
+
+
+void ConstructGRAPH(String name) : {Token t; Token var; JsonObjectBuilder tempJB = Json.createObjectBuilder(); Token partitionVar;Token partitionField; Token partitionFunction; JsonObjectBuilder partitionJB = Json.createObjectBuilder(); boolean partitionFlag = false;}
+{
+   <CONSTRUCTGRAPH> <FBRACKETSTART> t =quetedStatement()<FBRACKETEND> ( <PARTITION> <BY> ( LOOKAHEAD(1) (partitionField = <FIELDNAME> {partitionJB.add("Field", partitionField.image); partitionFlag = true;} )
+
+   | ( partitionFunction = <ALPHANUM> <FBRACKETSTART> partitionField = <FIELDNAME> <FBRACKETEND> {partitionJB.add("Function", partitionFunction.image); partitionJB.add("Field", partitionField.image); partitionFlag = true;} ) )
+
+   <AS>partitionVar=<ALPHANUM> )?
+
+
+   {tempJB = handleCypherQuery(t.image, tempJB, partitionJB, partitionFlag);}
+   {jjtThis.setImage(t.image);}
+}
+
+Token quetedStatement() : {Token t; Token x;}
+
+{
+  x = <QUOTED_IDENTIFIER> {System.out.println(x.image);}
+  {return x;}
+}
+void FilterOperation(String name) : {Token t;}
+{
+
+t = <FILTER> <FBRACKETSTART> {AdilFirstPass aa = new AdilFirstPass(); aa.printdata(t.image);} {jjtThis.setImage(t.image);}
+
+}
+void AnnotateWithStoreOperation(String name) : {Token s; Token t; List x; Token y; List l = new ArrayList(); List m = new ArrayList(); List z; JsonObjectBuilder exp = Json.createObjectBuilder(); JsonObjectBuilder annotate = Json.createObjectBuilder();}
+{
+
+
+t = <ANNOTATE> <FBRACKETSTART> x = GetField(l)<FBRACKETEND> <IN> y = <ALPHANUM> <WITH> z = GetDictionary(m) (exp = GetConditionExpression(exp))* (<STORE> <TYPE> s = <ALPHANUM>) <SEMICOLON>
+
+
+{edu.sdsc.awesome.adil.parser.StatementOperation.ParserUtil.getAnnotateJSONPLAN(name, z, exp.build(), x, y.image, s.image );}
+
+{edu.sdsc.awesome.adil.parser.ValidateName.CheckDB(y.image, x );}
+
+
+
+{CommonParserOperations.addVariable(name, t.image, planID );}
+
+{annotate.add("name",t.image);}
+{jjtThis.setImage(t.image);}
+
+}
+
+
+ JsonObjectBuilder GetConditionExpression(JsonObjectBuilder l) : {Token t; List x; List y; Token o1; Token operand; Token o2; JsonArrayBuilder m  =Json.createArrayBuilder();}
+{
+      <WHERE>
+           (o1 = <ALPHANUM> operand = <OPERATOR> o2 = <ALPHANUM>{JsonArrayBuilder k  =Json.createArrayBuilder(); k.add(operand.image);k.add(o1.image);k.add(o2.image); m.add(k.build());})
+
+                             (<AND> o1 = <ALPHANUM> operand = <OPERATOR> o2 = <ALPHANUM>{  JsonArrayBuilder p  =Json.createArrayBuilder(); p.add(operand.image);p.add(o1.image);p.add(o2.image); m.add(p.build()); })*{l.add("WHERE",m.build());}
+{return l;}
+
+}
+
+List GetField(List l) : {Token T; Token x; Token y;}
+{
+   (x = <FIELDNAME>)(<COMMA> y=<FIELDNAME>{l.add(y.image);})*{l.add(x.image);} {return l;}
+}
+
+List GetDictionary(List l) : {Token T; Token x; Token y;}
+{
+   (x = <ALPHANUM>)(<COMMA> y = <ALPHANUM>{l.add(y.image);})*{l.add(x.image);} {return l;}
+}
+
+
+
+
+
+
+void CreateDataVerse() : {Token t; }
+{
+
+ <DATAVERSE> t = <ALPHANUM> {System.out.println(t.image); }{jjtThis.setImage(t.image);}
+}
+
+
+void CreatEnvironment() : {Token t; }
+{
+
+ <ENV> t = <ALPHANUM> {System.out.println("test"); } {jjtThis.setImage(t.image);}
+}
+
+void UseEnvironment() : {Token t; }
+{
+
+ <ENV> t = <ALPHANUM> {System.out.println("test"); } {jjtThis.setImage(t.image);}
+}
+
+
+void Operator() : {Token t;} {
+  Operand() | action()
+  t="+" {jjtThis.setImage(t.image);}
+  Operand()
+}
+void Operand() : {Token t;} {
+  t=<DIGITS> {jjtThis.setImage(t.image);}
+}
+
+void action() : {Token t;}{
+t = <CREATE> {jjtThis.setImage(t.image);}
+
+}

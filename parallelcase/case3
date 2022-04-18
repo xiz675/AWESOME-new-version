@@ -1,0 +1,18 @@
+use tweetDB as polystore;
+create analysis tweetsanalysis as (
+    doc := executeSOLR("tweet-project", """q=tweet:Trump and tweet: COVID-19""");
+    userMention := executeSQL("tweets", "select user, mentioneduser, count(*) as count from (select * from tweetuser where tweetid in $doc.id) m group by user, mentioneduser");
+    mentionGraph := CONSTRUCTGRAPH{
+        View m := (
+        Merge (:User {id:$userMention.user})
+        Merge (:User {id:$userMention.mentioneduser})
+
+        MATCH (e1: User {id:$userMention.user})
+        MATCH (e2: User {id:$userMention.mentioneduser})
+        Merge (e1)-[:Mention {count:$userMention.count}]->(e2));
+    };
+    groups := kcore(mentionGraph, k=50);
+    grouptweets := executeSQL("tweets", "select g.coreid as coreid, t.tweet as tweet, t.user as user from $groups g, $doc d, tweetuser t where g.id=t.user and t.tweetid in d.id");
+    store(grouptweets, dbName="tweets", tableName="grouptweets");
+    Report grouptweets;
+)

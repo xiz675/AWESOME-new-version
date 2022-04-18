@@ -1,0 +1,33 @@
+use tweetDB as tdb;
+use newsDB as news;
+create analysis topicDistributionAnalysis as (
+newdID, newsText = Select newsText, newsID from news;
+newsEntity := NETokenizer(newsText, docID=newsID, textInput=newsText);
+features :=getVocubulary(news.newsText);
+tdm, docMatID, termMatID := countMatrix(newsText, features);
+docTopicMat, topicTermMat := topicModel(docTopicMat, topicTermMat, tdm, k=10);
+tempQ := executeSQL("select userName from ndb.famoususer where year = 2019");
+mid[] := select docMatID.mid from docMatID, newsEntity where newsEntity.entityTerm in tempQ  and docMatID.did = newsEntity.docID;
+tdmFamous[] := [];
+for id : mid{
+    tempVal := GetMatrixElement(tdm, id);
+    tdmFamous := tdmFamous.add(tempVal);
+};
+docTopicMatFamous, topicTermMatFamous := topicModel(docTopicMatFamous, topicTermMatFamous, tdmFamous, k=10);
+Relation userCommunity := executeCypher("louvain('User', 'Reply') RETURN userName AS user, community ORDER BY community") store;
+communities[] := select distinct(community) from userCommunity;
+similarity := [];
+for c  : communities {
+    users[] := select user from userCommunity where community = c;
+    Relation tweets := executeCypher("match (u1:User) - [r:Reply] - (u2:User) where u1 in $users and u2 in $users return r.tweet.text");
+    features := getVocubulary(tweets);
+    tdmCom, docMatIDCom, termMatIDCom := countMatrix( tweets.text, features);
+    docTopicMatCom, topicTermMatCom := topicModel(tdmCom, k=10);
+    newMatrix := mergeFeatureMatrix(termMatID, termMatIDCom, feature=col);
+    topicTermMatNew := featureMatrixReconstruct(topicTermMat, termMatID, newMatrix, feature=col);
+    topicTermMatComNew := featureMatrixReconstruct(topicTermMatCom, termMatIDCom, newMatrix, feature=col);
+    sim[] := matrixSimilarity(topicTermMatNew, topicTermMatComNew, function=OptimalMatch);
+    similarity := similarity.add(ave(sim));
+};
+communityID := similarity.indexOf(max(similarity));
+);

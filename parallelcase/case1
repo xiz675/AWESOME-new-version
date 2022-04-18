@@ -1,0 +1,21 @@
+use newsDB as polystore;
+create analysis newstopicanalysis as (
+src :=  "http://www.chicagotribune.com/";
+rawNews := executeSQL("News", "select id as newsid, news as newsText from usnewspaper where src = $src and news ilike '%trump%' ");
+processedNews := tokenize(rawNews.newsText, docid=rawNews.newsid, stopwords="C:\Documents\stopwords.txt");
+numberTopic := 100;
+DTM, WTM := lda(processedNews, docid=true, topic=numberTopic);
+store(DTM, dbName="News", tableName="topicdistribution", rowIndex=True, columnIndex=True, columnName=["docID", "terms", "weights"]);
+G := buildWordNeighborGraph(processedNews, maxDistance=5, splitter=".");
+topicID := [range(0, numberTopic, 1)];
+wtmPerTopic := topicID.#map(i => WTM where getValue(_:Row, i) > 0);
+wordsPerTopic := wtmPerTopic.#map(i => rowNames(i));
+relationPerTopic := wordsPerTopic.#map(words => (<n:String, m:String, count:Integer>) executeCypher(G, "match (n)-[r]->(m) where n in $words and m in $words return n, m, r.count as count"));
+graphPerTopic := relationPerTopic.#map(r => ConstructGraphFromRelation(r, (:Word {id: $r.n}) -[:Cooccur{count: $r.count}]->(:Word{id: $r.m})));
+scores := graphPerTopic.#map(g => pageRank(g, topk=true, num=20));
+aggregatePT := scores.#map(i => sum(i.rank));
+store(aggregatePT, dbName="News", tableName="aggregatePageRankofTopk", index=True, columnName=["id", "pagerank"]);
+);
+
+
+

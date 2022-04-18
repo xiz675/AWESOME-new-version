@@ -1,0 +1,21 @@
+create analysis a1 as (
+a := 3;
+/* b will be initialized with [1,2,3] */
+b := [1, 2, a];
+/* c will be initialized with value 3*/
+c := b[2];
+x := count(b);
+/* y is not initialized without executing function count*/
+y:=[1, x];
+d := [[1, 2, a], [5, 6, 7]];
+e := d[1][2];
+f := [[1,2], [3,4]];
+g := [d,f];
+List d;
+for i:b {
+    a := 1;
+    /* it will search the block variables first, so the value of a is 1 instead of 3 */
+    c := a + i;
+    d := d.add(c);
+} return d;
+);
